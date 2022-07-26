@@ -22,14 +22,6 @@ class BrowstorJS {
     private static instances = {}
 
     /**
-     * Internal promises whenever a specific dbName have an active service worker
-     */
-    private static serviceWorkersActive = {
-        'promises': {},
-        'resolvers': {}
-    }
-
-    /**
      * Handle service worker events
      * @param {any} event
      * @param {string} dbName
@@ -42,21 +34,23 @@ class BrowstorJS {
         const fileUrlPrefix = "/__browstorJsfile__"
         switch (event.type) {
             case 'activate':
-                // if no pending promise exist, create one
-                if (!BrowstorJS.serviceWorkersActive.promises[dbName]) {
-                    BrowstorJS.serviceWorkersActive.promises[dbName] = new Promise<void>(function (resolve) {
-                        BrowstorJS.serviceWorkersActive.resolvers[dbName] = resolve
-                    })
-                }
-                // resolve if not yet resolved
-                if (BrowstorJS.serviceWorkersActive.resolvers[dbName]) {
-                    BrowstorJS.serviceWorkersActive.resolvers[dbName]()
-                    delete BrowstorJS.serviceWorkersActive.resolvers[dbName]
-                }
                 if (claim) {
                     // @ts-ignore
                     self.clients.claim()
                 }
+                break;
+            case 'message':
+                // @ts-ignore
+                const msg = event.data
+                if (!msg || !msg.browstorJsGetFileUrl) return false
+                // @ts-ignore
+                event.source.postMessage({
+                    'browstorJsFileUrl': {
+                        'dbName': dbName,
+                        'key': msg.browstorJsGetFileUrl.key,
+                        'url': fileUrlPrefix + msg.browstorJsGetFileUrl.key
+                    }
+                })
                 break;
             case 'fetch':
                 // @ts-ignore
@@ -76,35 +70,6 @@ class BrowstorJS {
                     }))
                 }))
                 return true
-            case 'message':
-                // @ts-ignore
-                const msg = event.data
-                if (!msg || !msg.browstorJsGetFileUrl) return false
-
-                if (claim) {
-                    // @ts-ignore
-                    self.clients.claim()
-                }
-
-                dbName = msg.browstorJsGetFileUrl.dbName
-                // queue for message to frontend to send back whenever a worker has been activated for this db
-                if (!BrowstorJS.serviceWorkersActive.promises[dbName]) {
-                    BrowstorJS.serviceWorkersActive.promises[dbName] = new Promise<void>(function (resolve) {
-                        BrowstorJS.serviceWorkersActive.resolvers[dbName] = resolve
-                    })
-                }
-                // send message when service worker is active
-                BrowstorJS.serviceWorkersActive.promises[dbName].then(function () {
-                    // @ts-ignore
-                    event.source.postMessage({
-                        'browstorJsFileUrl': {
-                            'dbName': dbName,
-                            'key': msg.browstorJsGetFileUrl.key,
-                            'url': fileUrlPrefix + msg.browstorJsGetFileUrl.key
-                        }
-                    })
-                })
-                break;
         }
         return false
     }

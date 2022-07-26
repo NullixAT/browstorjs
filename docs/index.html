@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>BrowstorJS - Easy Persistent Data Storage for your Browser</title>
+    <style>
+      body {
+        background: white;
+        text-align: center;
+        font-size: 18px;
+        line-height: 1.5;
+        color: #222;
+        font-family: Arial, sans-serif;
+        padding: 0;
+        margin: 0;
+      }
+
+      .wide {
+        font-size: 30px;
+        padding: 20px;
+        background: teal;
+        background: radial-gradient(#4ae4ae, #39d39d);
+        color: white;
+        font-family: "Georgia", serif;
+        border-top: 2px solid rgba(0, 0, 0, 0.1);
+        border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+        text-shadow: rgba(0, 0, 0, 0.2) 2px 2px 2px, rgba(0, 0, 0, 0.2) -1px -1px 1px;
+      }
+
+      h1 {
+        margin: 0;
+        padding: 0;
+      }
+
+      h2 {
+        padding: 0;
+        font-family: "Georgia", serif;
+        margin: 0 0 15px;
+      }
+
+      a:any-link {
+        color: #39d39d;
+      }
+
+      nav {
+        display: flex;
+        margin: 20px auto;
+        max-width: 900px;
+        justify-content: center;
+      }
+
+      nav a {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .page {
+        max-width: 900px;
+        padding: 20px;
+        border-radius: 20px;
+        margin: 20px auto;
+        background: white;
+      }
+
+      .spacer {
+        margin: 20px;
+        border-bottom: 1px solid #eee;
+      }
+
+      button {
+        background: #39d39d;
+        color: white;
+        padding: 15px 25px;
+        border: 0;
+        border-radius: 5px;
+        text-shadow: rgba(0, 0, 0, 0.2) 2px 2px 2px, rgba(0, 0, 0, 0.2) -1px -1px 1px;
+        font-size: inherit;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #2cb485;
+      }
+      button:active {
+        background: #227e5e;
+      }
+
+      table {
+        width: 100%;
+        text-align: left;
+      }
+
+      table tr:nth-child(2n) {
+        background: #f5f5f5;
+      }
+
+      table tr td {
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+      }
+
+    </style>
+</head>
+<body>
+<nav>
+    <a href="https://github.com/NullixAT/browstorjs" target="_blank">
+        <img src="img/github-svgrepo-com.svg" width="40" title="Docs and download on GitHub">
+        <span>Docs and download on GitHub</span>
+    </a>
+</nav>
+<div class="wide">
+    <h1>BrowstorJS</h1>
+    Easy Persistent Data Storage for your Browser
+</div>
+<div class="page">
+    <p>
+        Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service
+        worker support, all with IndexedDB.
+    </p>
+    <div class="spacer"></div>
+    <h2>Try it out yourself</h2>
+    <button id="create-entry">Create Random Entry</button>
+    <button id="create-image">Create Random Image</button>
+    <p>
+        After you've added entries, you can reload the page, close the browser, etc...<br/>
+        After you come back, the values will still be here.
+    </p>
+    <table id="entries">
+        <tbody></tbody>
+    </table>
+</div>
+
+<script src="../dist/browstorjs.js"></script>
+<script>
+  (async function () {
+    async function updateTable () {
+      const db = await BrowstorJS.open()
+      const keys = await db.getKeys()
+      keys.sort(function (a, b) {
+        return a.localeCompare(b, undefined, {
+          numeric: true,
+          sensitivity: 'base'
+        })
+      })
+      const tbody = document.querySelector('#entries tbody')
+      let html = ''
+      for (let i = 0; i < keys.length; i++) {
+        const row = await db.get(keys[i])
+        let value = row
+        if (row instanceof Blob) {
+          value = '<img src="' + (await db.getUrl(keys[i])) + '">'
+        }
+        html += `<tr>
+            <td>${i + 1}</td>
+            <td>${value}</td>
+        </tr>`
+      }
+      tbody.innerHTML = html
+    }
+
+    // just register service worker as usual
+    const serviceWorker = await navigator.serviceWorker.register('service-worker.js')
+
+    document.querySelector('#create-image').addEventListener('click', async function () {
+      const db = await BrowstorJS.open()
+      const newId = (await db.getKeys()).length + 1
+      const response = await fetch('img/testimage.png')
+      await db.set('entry-' + newId, await response.blob())
+      updateTable()
+    })
+    document.querySelector('#create-entry').addEventListener('click', async function () {
+      const db = await BrowstorJS.open()
+      const newId = (await db.getKeys()).length + 1
+      await db.set('entry-' + newId, 'Entry Nr. ' + newId + ' with some random number: ' + Math.random())
+      updateTable()
+    })
+
+    updateTable()
+  })()
+</script>
+</body>
+</html>

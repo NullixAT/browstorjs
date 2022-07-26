@@ -3,21 +3,18 @@ class BrowstorJS {
         const fileUrlPrefix = "/__browstorJsfile__";
         switch (event.type) {
             case 'activate':
+                if (!BrowstorJS.serviceWorkersActive.promises[dbName]) {
+                    BrowstorJS.serviceWorkersActive.promises[dbName] = new Promise(function (resolve) {
+                        BrowstorJS.serviceWorkersActive.resolvers[dbName] = resolve;
+                    });
+                }
+                if (BrowstorJS.serviceWorkersActive.resolvers[dbName]) {
+                    BrowstorJS.serviceWorkersActive.resolvers[dbName]();
+                    delete BrowstorJS.serviceWorkersActive.resolvers[dbName];
+                }
                 if (claim) {
                     self.clients.claim();
                 }
-                break;
-            case 'message':
-                const msg = event.data;
-                if (!msg || !msg.browstorJsGetFileUrl)
-                    return false;
-                event.source.postMessage({
-                    'browstorJsFileUrl': {
-                        'dbName': dbName,
-                        'key': msg.browstorJsGetFileUrl.key,
-                        'url': fileUrlPrefix + msg.browstorJsGetFileUrl.key
-                    }
-                });
                 break;
             case 'fetch':
                 const url = event.request.url;
@@ -33,6 +30,29 @@ class BrowstorJS {
                     }));
                 }));
                 return true;
+            case 'message':
+                const msg = event.data;
+                if (!msg || !msg.browstorJsGetFileUrl)
+                    return false;
+                if (claim) {
+                    self.clients.claim();
+                }
+                dbName = msg.browstorJsGetFileUrl.dbName;
+                if (!BrowstorJS.serviceWorkersActive.promises[dbName]) {
+                    BrowstorJS.serviceWorkersActive.promises[dbName] = new Promise(function (resolve) {
+                        BrowstorJS.serviceWorkersActive.resolvers[dbName] = resolve;
+                    });
+                }
+                BrowstorJS.serviceWorkersActive.promises[dbName].then(function () {
+                    event.source.postMessage({
+                        'browstorJsFileUrl': {
+                            'dbName': dbName,
+                            'key': msg.browstorJsGetFileUrl.key,
+                            'url': fileUrlPrefix + msg.browstorJsGetFileUrl.key
+                        }
+                    });
+                });
+                break;
         }
         return false;
     }
@@ -222,3 +242,7 @@ class BrowstorJS {
     }
 }
 BrowstorJS.instances = {};
+BrowstorJS.serviceWorkersActive = {
+    'promises': {},
+    'resolvers': {}
+};
