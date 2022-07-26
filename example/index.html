@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>BrowstorJS - Easy Persistent Data Storage for your Browser</title>
+    <script src="../dist/browstorjs.js"></script>
+    <script>
+      (async function () {
+        // just register service worker as usual
+        const serviceWorker = await navigator.serviceWorker.register('service-worker.js')
+        // get db instance
+        const db = await BrowstorJS.open()
+        // draw some content
+        document.querySelector('.page').innerHTML = `
+            <img src="${await db.getUrl('test')}">
+        `
+      })()
+    </script>
+    <style>
+      body {
+        background: #222;
+        text-align: center;
+        font-size: 16px;
+        line-height: 1.5;
+        color: #222;
+      }
+
+      .page {
+        max-width: 900px;
+        padding: 20px;
+        border-radius: 20px;
+        margin: 20px auto;
+        background: white;
+      }
+
+    </style>
+</head>
+<body>
+<div class="page">
+    Loading...
+</div>
+</body>
+</html>

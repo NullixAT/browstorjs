@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "outDir": "./dist/",
+    "sourceMap": false,
+    "noImplicitAny": false,
+    "target": "ES2017",
+    "removeComments": true
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/*.spec.ts"
+  ]
+}
