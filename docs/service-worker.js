@@ -1,18 +1,16 @@
-importScripts('../dist/browstorjs.js')
-
-const browstorjsDbName = "browstorJs"
+importScripts('scripts/browstorjs.js')
 
 self.addEventListener('activate',  event => {
-  if(BrowstorJS.handleServiceWorkerEvents(event, browstorjsDbName)) return
+  if(BrowstorJS.handleServiceWorkerEvents(event)) return
   // place your additional app code here
 })
 
 self.addEventListener('fetch',  event => {
-  if(BrowstorJS.handleServiceWorkerEvents(event, browstorjsDbName)) return
+  if(BrowstorJS.handleServiceWorkerEvents(event)) return
   // place your additional app code here
 })
 
 self.addEventListener('message',  event => {
-  if(BrowstorJS.handleServiceWorkerEvents(event, browstorjsDbName)) return
+  if(BrowstorJS.handleServiceWorkerEvents(event)) return
   // place your additional app code here
 })

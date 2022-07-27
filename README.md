@@ -1,5 +1,7 @@
+![Logo](docs/img/github-logo.png)
+
 # BrowstorJS
-Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service worker support, all with IndexedDB.
+Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service worker support, all with IndexedDB. Perfectly suitable for your next (PWA) app.
 
 ## Features
 
@@ -20,6 +22,7 @@ await db.search((key, value) => { return key.startsWith('mykey') }) // search en
 await db.remove('mykey') // remove a single key
 await db.reset() // clear the database, delete all entries
 await db.getKeys() // ['mykey', ...]
+const db = await BrowstorJS.open('myotherdb') // get instance to a separate db
 ```
 
 ## Demo
@@ -31,22 +34,28 @@ To make the generation of `getUrl` work, you need to handle some service worker 
 This is the bare minimum inside a service worker, you can add your custom code after the BrowstorJS handlers.
 
 ```javascript
-importScripts('./browstorjs.js')
-
-const browstorjsDbName = "browstorJs"
+importScripts('scripts/browstorjs.js')
 
 self.addEventListener('activate',  event => {
-  if(BrowstorJS.handleServiceWorkerEvents(event, browstorjsDbName)) return
+  if(BrowstorJS.handleServiceWorkerEvents(event)) return
   // place your additional app code here
 })
 
 self.addEventListener('fetch',  event => {
-  if(BrowstorJS.handleServiceWorkerEvents(event, browstorjsDbName)) return
+  if(BrowstorJS.handleServiceWorkerEvents(event)) return
   // place your additional app code here
 })
 
 self.addEventListener('message',  event => {
-  if(BrowstorJS.handleServiceWorkerEvents(event, browstorjsDbName)) return
+  if(BrowstorJS.handleServiceWorkerEvents(event)) return
   // place your additional app code here
 })
 ```
+
+## Development in this library
+
+1. Create an issue for features and bugs
+2. Checkout master
+3. Run `npm install`
+4. After changing `src/browserjs.ts`, run `npm run dist`
+5. Check tests and add tests when adding new features

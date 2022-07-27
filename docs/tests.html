@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>BrowstorJS Tests</title>
+    <link rel="icon" href="img/logo.svg">
+    <script>
+      navigator.serviceWorker.register('service-worker.js')
+    </script>
+    <style>
+      body {
+        background: white;
+        text-align: center;
+        font-size: 18px;
+        line-height: 1.5;
+        color: #222;
+        font-family: Arial, sans-serif;
+        padding: 20px;
+        margin: 0;
+      }
+      h2 {
+        margin: 0;
+        padding: 0;
+      }
+      .test {
+        padding: 10px;
+        border: 1px solid #ccc;
+        margin-bottom: 10px;
+      }
+    </style>
+</head>
+<body>
+<h2 id="title" style="color: orange">Tests are running...</h2>
+<div id="tests">
+
+</div>
+
+
+<script src="scripts/browstorjs.js"></script>
+<script>
+  (async function () {
+    function addTest (title, test) {
+      const id = tests.length
+      const el = document.createElement('div')
+      el.classList.add('test')
+      el.dataset.id = id
+      el.innerHTML = `
+            <h2>${title}</h2>
+      `
+      testsEl.appendChild(el)
+      tests.push({ 'title': title, 'test': test, 'el': el })
+    }
+
+    async function runTests () {
+      for (let i = 0; i < tests.length; i++) {
+        // after 5 seconds a test is considered failed
+        const to = setTimeout(function () {
+          title.innerHTML = 'Errors in Test ' + nr + ' - See console for more information'
+          title.style.color = 'red'
+        }, 5000)
+        const nr = (i + 1)
+        title.innerHTML = 'Running Test ' + nr + ' from ' + tests.length
+        const test = tests[i]
+        console.log('===TEST ' + nr + ' STARTED===')
+        await test.test()
+        clearTimeout(to)
+        test.el.innerHTML += '<br/><span style="color: green">Finished</span>'
+        console.log('===TEST ' + nr + ' FINISHED===')
+        console.log('')
+      }
+      title.innerHTML = 'All ' + tests.length + ' tests succesfully finished'
+      title.style.color = 'green'
+    }
+
+    async function assert (expect, actual) {
+      return new Promise(async function (resolve) {
+        if ((expect instanceof Blob)) expect = await expect.text()
+        if ((actual instanceof Blob)) actual = await actual.text()
+        expect = JSON.stringify(expect)
+        actual = JSON.stringify(actual)
+        if (expect !== actual) {
+          console.error('Expected: ', expect)
+          console.error('Actual: ', actual)
+          title.innerHTML += '<br/>Error - See console for more information'
+          title.style.color = 'red'
+          return
+        }
+        resolve()
+      })
+    }
+
+    const testsEl = document.getElementById('tests')
+    const title = document.getElementById('title')
+    const tests = []
+
+    const dbName = 'browstorjs_test'
+
+    let imageBlob = null
+
+    addTest('Initial Reset db', async function () {
+      const db = await BrowstorJS.open(dbName)
+      await db.reset()
+      await assert([], await db.getKeys())
+    })
+
+    addTest('Set value', async function () {
+      imageBlob = await (await fetch('img/testimage.png')).blob()
+      const db = await BrowstorJS.open(dbName)
+      await db.set('testvalue1', 123)
+      await db.set('testvalue2', '')
+      await db.set('testvalue3', ['1'])
+      await db.set('testvalue4', imageBlob)
+      await assert(123, await db.get('testvalue1'))
+      await assert('', await db.get('testvalue2'))
+      await assert(['1'], await db.get('testvalue3'))
+      await assert(imageBlob, await db.get('testvalue4'))
+    })
+
+    addTest('Get value', async function () {
+      const db = await BrowstorJS.open(dbName)
+      await assert(123, await db.get('testvalue1'))
+      await assert('', await db.get('testvalue2'))
+      await assert(['1'], await db.get('testvalue3'))
+    })
+
+    addTest('Search value', async function () {
+      const db = await BrowstorJS.open(dbName)
+      await assert({ 'testvalue1': 123 }, await db.search(function (key, value) {
+        return key === 'testvalue1'
+      }))
+      await assert('', await db.get('testvalue2'))
+      await assert(['1'], await db.get('testvalue3'))
+    })
+
+    addTest('Remove value', async function () {
+      const db = await BrowstorJS.open(dbName)
+      await db.remove('testvalue1')
+      await assert(null, await db.get('testvalue1'))
+    })
+
+    addTest('Get URL', async function () {
+      const db = await BrowstorJS.open(dbName)
+      await assert('_browstorJS/testvalue4/browstorjs_test', await db.getUrl('testvalue4'))
+    })
+
+    addTest('Check URL matching testfile', async function () {
+      const db = await BrowstorJS.open(dbName)
+      await assert(await (await fetch('img/testimage.png')).blob(), await (await fetch(await db.getUrl('testvalue4'))).blob())
+    })
+
+    addTest('Get keys', async function () {
+      const db = await BrowstorJS.open(dbName)
+      await assert(['testvalue2', 'testvalue3', 'testvalue4'], await db.getKeys())
+    })
+
+    addTest('Break/Close DB connection and check auto-reconnect', async function () {
+      const db = await BrowstorJS.open(dbName)
+      db.idb.close()
+      await assert(['testvalue2', 'testvalue3', 'testvalue4'], await db.getKeys())
+    })
+
+    addTest('Reset', async function () {
+      const db = await BrowstorJS.open(dbName)
+      await db.reset()
+      await assert([], await db.getKeys())
+    })
+
+    runTests()
+  })()
+</script>
+</body>
+</html>

@@ -24,14 +24,13 @@ class BrowstorJS {
     /**
      * Handle service worker events
      * @param {any} event
-     * @param {string} dbName
      * @param {boolean} claim Does automatically call self.clients.claim() to make sure that after SW updates the events are handled properly
      *  If you do not do this, it is possible that first open of a website or updates of SW temporarily cannot display file urls from browstorJs
      *  cecause the 'fetch' event never gets fired
      * @returns {boolean} Returns true if event is handled by this function, you need to stop further processing if this is true
      */
-    static handleServiceWorkerEvents(event: any, dbName: string = "browstorJs", claim: boolean = true): boolean {
-        const fileUrlPrefix = "/__browstorJsfile__"
+    static handleServiceWorkerEvents(event: any, claim: boolean = true): boolean {
+        const fileUrlPrefix = "_browstorJS/"
         switch (event.type) {
             case 'activate':
                 if (claim) {
@@ -40,15 +39,18 @@ class BrowstorJS {
                 }
                 break;
             case 'message':
+                if (claim) {
+                    // @ts-ignore
+                    self.clients.claim()
+                }
                 // @ts-ignore
                 const msg = event.data
                 if (!msg || !msg.browstorJsGetFileUrl) return false
                 // @ts-ignore
                 event.source.postMessage({
                     'browstorJsFileUrl': {
-                        'dbName': dbName,
                         'key': msg.browstorJsGetFileUrl.key,
-                        'url': fileUrlPrefix + msg.browstorJsGetFileUrl.key
+                        'url': fileUrlPrefix + msg.browstorJsGetFileUrl.key + "/" + msg.browstorJsGetFileUrl.dbName
                     }
                 })
                 break;
@@ -59,7 +61,9 @@ class BrowstorJS {
                     return false
                 }
 
-                const key = url.substring(url.lastIndexOf(fileUrlPrefix) + fileUrlPrefix.length)
+                const urlSplit = url.split("/")
+                const key = urlSplit[urlSplit.length - 2]
+                const dbName = urlSplit[urlSplit.length - 1]
 
                 // @ts-ignore
                 event.respondWith(new Promise<Response>(async function (resolve) {
@@ -179,7 +183,7 @@ class BrowstorJS {
                 const cursor = event.target.result;
                 if (cursor) {
                     if (await callback(cursor.key, cursor.value)) {
-                        result[cursor.key] = cursor.value
+                        result[cursor.key] = cursor.value.value
                     }
                     cursor.continue();
                 }
@@ -204,7 +208,7 @@ class BrowstorJS {
         return new Promise<string>(function (resolve) {
             // get message from service worker that contains the url when everything is ready to serve this url
             navigator.serviceWorker.addEventListener("message", (evt) => {
-                if (evt.data && evt.data.browstorJsFileUrl && evt.data.browstorJsFileUrl.dbName === self.dbName && evt.data.browstorJsFileUrl.key === key) {
+                if (evt.data && evt.data.browstorJsFileUrl && evt.data.browstorJsFileUrl.key === key) {
                     resolve(evt.data.browstorJsFileUrl.url)
                 }
             })

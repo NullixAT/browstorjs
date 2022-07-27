@@ -1,10 +1,9 @@
 {
   "compilerOptions": {
-    "outDir": "./dist/",
+    "outDir": "./docs/scripts/",
     "sourceMap": false,
     "noImplicitAny": false,
-    "target": "ES2017",
-    "removeComments": true
+    "target": "ES2017"
   },
   "include": [
     "src/**/*"
