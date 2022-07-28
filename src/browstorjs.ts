@@ -3,7 +3,7 @@
  * Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service worker support, all with IndexedDB.
  * @url https://github.com/NullixAT/browstorjs
  */
-class BrowstorJS {
+export default class BrowstorJS {
 
   /**
    * The opened idb database

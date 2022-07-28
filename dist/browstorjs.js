@@ -14,7 +14,7 @@ class BrowstorJS {
      * @returns {boolean} Returns true if event is handled by this function, you need to stop further processing if this is true
      */
     static handleServiceWorkerEvents(event, claim = true) {
-        const fileUrlPrefix = "_browstorJS/";
+        const fileUrlPrefix = '_browstorJS/';
         switch (event.type) {
             case 'activate':
                 if (claim) {
@@ -35,7 +35,7 @@ class BrowstorJS {
                 event.source.postMessage({
                     'browstorJsFileUrl': {
                         'key': msg.browstorJsGetFileUrl.key,
-                        'url': fileUrlPrefix + msg.browstorJsGetFileUrl.key + "/" + msg.browstorJsGetFileUrl.dbName
+                        'url': fileUrlPrefix + msg.browstorJsGetFileUrl.key + '/' + msg.browstorJsGetFileUrl.dbName
                     }
                 });
                 break;
@@ -45,7 +45,7 @@ class BrowstorJS {
                 if (!url.includes(fileUrlPrefix)) {
                     return false;
                 }
-                const urlSplit = url.split("/");
+                const urlSplit = url.split('/');
                 const key = urlSplit[urlSplit.length - 2];
                 const dbName = urlSplit[urlSplit.length - 1];
                 // @ts-ignore
@@ -65,7 +65,7 @@ class BrowstorJS {
      * @param {string} dbName
      * @returns {Promise<BrowstorJS>}
      */
-    static async open(dbName = "browstorJs") {
+    static async open(dbName = 'browstorJs') {
         if (typeof BrowstorJS.instances[dbName] !== 'undefined' && BrowstorJS.instances[dbName])
             return BrowstorJS.instances[dbName];
         return new Promise(function (resolve, reject) {
@@ -186,7 +186,7 @@ class BrowstorJS {
         const self = this;
         return new Promise(function (resolve) {
             // get message from service worker that contains the url when everything is ready to serve this url
-            navigator.serviceWorker.addEventListener("message", (evt) => {
+            navigator.serviceWorker.addEventListener('message', (evt) => {
                 if (evt.data && evt.data.browstorJsFileUrl && evt.data.browstorJsFileUrl.key === key) {
                     resolve(evt.data.browstorJsFileUrl.url);
                 }
@@ -233,14 +233,22 @@ class BrowstorJS {
             const transaction = db.transaction([self.dbName], 'readonly');
             const objectStore = transaction.objectStore(self.dbName);
             const myIndex = objectStore.index('key');
-            const request = myIndex.getAllKeys();
-            request.onsuccess = function () {
+            const request = objectStore.openCursor();
+            const result = [];
+            request.onsuccess = async function (event) {
                 // @ts-ignore
-                resolve(request.result);
+                const cursor = event.target.result;
+                if (cursor) {
+                    result.push(cursor.key);
+                    cursor.continue();
+                }
             };
             request.onerror = function (e) {
                 console.error(e);
                 reject(e);
+            };
+            transaction.oncomplete = function (e) {
+                resolve(result);
             };
         });
     }
