@@ -1,6 +1,6 @@
 ![Logo](docs/img/github-logo.png)
 
-# BrowstorJS :rocket: :floppy_disk: :lock: ![Tests](https://github.com/NullixAT/browstorjs/actions/workflows/playwright.yml/badge.svg)
+# BrowstorJS :rocket: :floppy_disk: :lock: [![Tests](https://github.com/NullixAT/browstorjs/actions/workflows/playwright.yml/badge.svg)](https://github.com/NullixAT/browstorjs/actions/workflows/playwright.yml)
 
 Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service worker
 support, all with IndexedDB. Perfectly suitable for your next (PWA) app.
