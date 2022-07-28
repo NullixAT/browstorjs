@@ -1,17 +1,20 @@
 ![Logo](docs/img/github-logo.png)
 
-# BrowstorJS
-Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service worker support, all with IndexedDB. Perfectly suitable for your next (PWA) app.
+# BrowstorJS :rocket: :floppy_disk: :lock:
 
-## Features
+Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service worker
+support, all with IndexedDB. Perfectly suitable for your next (PWA) app.
+
+## Features :mega:
 
 * Simple Key/Value Data Storage in IndexedDB
 * Serve any storage value as a real URL (No Data URI) for Images, Files, etc...
 * Promisified for async/await support
-* Cross-Browser (No Internet Explorer)
-* Lightweight
+* Cross-Browser: Chrome, Firefox, WebKit, Edge New (Chromium), Edge Old v17+, and every other from the last year (No
+  Internet Explorer :trollface:)
+* Super Lightweight (~200 byte when gzipped)
 
-## Usage
+## Usage :zap:
 
 ```javascript
 const db = await BrowstorJS.open() // get instance
@@ -25,29 +28,56 @@ await db.getKeys() // ['mykey', ...]
 const db = await BrowstorJS.open('myotherdb') // get instance to a separate db
 ```
 
-## Demo
-Head to our demo page to see the library in action.
+Jump to [Event registration inside service worker](#event-registration-inside-service-worker) to make the
+function `db.getUrl()` to actually work.
 
-## Event registration inside service worker
-To make the generation of `getUrl` work, you need to handle some service worker events. If you don't need `getUrl` you also don't necessarily need a service worker.
+## Demo :space_invader:
+
+Head to our [demo page](https://nullixat.github.io/browstorjs) to see and test the library in action.
+
+## Install :cd:
+
+##### Variant Self-Hosted Self-Download
+
+Download the [latest release](https://github.com/NullixAT/pagemyself/releases/latest), unpack the `dist/browstorjs.js`
+and load it into your website `<script src="browstorjs.js"></script>`.
+
+##### Variant using TypeScript
+
+Download the  [latest release](https://github.com/NullixAT/pagemyself/releases/latest) (Or use NPM to install the
+library) and include `src/browstorjs.ts` wherever you need it.
+
+##### Variant using NPM
+
+TBA. You know how to pack the library into your website when you opt in for using npm. It depends on your environment
+how you integrate the dist file.
+
+##### Variant using CDN (Not recommended but handy for quick tests)
+
+TBA. Load it into your website `<script src="browstorjs.js"></script>`.
+
+## Event registration inside service worker :saxophone:
+
+To make the generation of `getUrl` work, you need to handle some service worker events. If you don't need `getUrl` you
+also don't necessarily need a service worker.
 
 This is the bare minimum inside a service worker, you can add your custom code after the BrowstorJS handlers.
 
 ```javascript
 importScripts('scripts/browstorjs.js')
 
-self.addEventListener('activate',  event => {
-  if(BrowstorJS.handleServiceWorkerEvents(event)) return
+self.addEventListener('activate', event => {
+  if (BrowstorJS.handleServiceWorkerEvents(event)) return
   // place your additional app code here
 })
 
-self.addEventListener('fetch',  event => {
-  if(BrowstorJS.handleServiceWorkerEvents(event)) return
+self.addEventListener('fetch', event => {
+  if (BrowstorJS.handleServiceWorkerEvents(event)) return
   // place your additional app code here
 })
 
-self.addEventListener('message',  event => {
-  if(BrowstorJS.handleServiceWorkerEvents(event)) return
+self.addEventListener('message', event => {
+  if (BrowstorJS.handleServiceWorkerEvents(event)) return
   // place your additional app code here
 })
 ```
@@ -56,6 +86,6 @@ self.addEventListener('message',  event => {
 
 1. Create an issue for features and bugs
 2. Checkout master
-3. Run `npm install`
+3. Run `npm install && npm ci && npx playwright install --with-deps`
 4. After changing `src/browserjs.ts`, run `npm run dist`
-5. Check tests and add tests when adding new features
+5. Check tests and add new tests to `docs/test.html` when adding new features

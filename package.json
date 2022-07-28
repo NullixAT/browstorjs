@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service worker support, all with IndexedDB.",
   "scripts": {
-    "dist" : "node ./node_modules/typescript/bin/tsc --project tsconfig.json && node build/dist.js"
+    "dist": "node ./node_modules/typescript/bin/tsc --project tsconfig.json && node build/dist.js"
   },
   "repository": {
     "type": "git",
@@ -17,5 +17,8 @@
   "homepage": "https://github.com/NullixAT/browstorjs",
   "dependencies": {
     "typescript": "^4.7.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.24.1"
   }
 }

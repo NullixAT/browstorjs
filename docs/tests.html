@@ -31,11 +31,7 @@
 </head>
 <body>
 <h2 id="title" style="color: orange">Tests are running...</h2>
-<div id="tests">
-
-</div>
-
-
+<div id="tests"></div>
 <script src="scripts/browstorjs.js"></script>
 <script>
   (async function () {
@@ -55,17 +51,17 @@
       for (let i = 0; i < tests.length; i++) {
         // after 5 seconds a test is considered failed
         const to = setTimeout(function () {
-          title.innerHTML = 'Errors in Test ' + nr + ' - See console for more information'
+          title.innerHTML = 'Errors in Test ' + testTitle + ' - See console for more information'
           title.style.color = 'red'
         }, 5000)
-        const nr = (i + 1)
-        title.innerHTML = 'Running Test ' + nr + ' from ' + tests.length
         const test = tests[i]
-        console.log('===TEST ' + nr + ' STARTED===')
+        const testTitle = (i + 1) + ' \'' + test.title + '\''
+        title.innerHTML = 'Running Test ' + testTitle + ' from ' + tests.length
+        console.log('===TEST ' + testTitle + ' STARTED===')
         await test.test()
         clearTimeout(to)
         test.el.innerHTML += '<br/><span style="color: green">Finished</span>'
-        console.log('===TEST ' + nr + ' FINISHED===')
+        console.log('===TEST ' + testTitle + ' FINISHED===')
         console.log('')
       }
       title.innerHTML = 'All ' + tests.length + ' tests succesfully finished'
@@ -74,8 +70,8 @@
 
     async function assert (expect, actual) {
       return new Promise(async function (resolve) {
-        if ((expect instanceof Blob)) expect = await expect.text()
-        if ((actual instanceof Blob)) actual = await actual.text()
+        if ((expect instanceof Blob)) expect = await blobToArrayBuffer(expect)
+        if ((actual instanceof Blob)) actual = await blobToArrayBuffer(actual)
         expect = JSON.stringify(expect)
         actual = JSON.stringify(actual)
         if (expect !== actual) {
@@ -85,7 +81,20 @@
           title.style.color = 'red'
           return
         }
+        title.dataset.status = 'finished'
         resolve()
+      })
+    }
+
+    async function blobToArrayBuffer (blob) {
+      return new Promise(function (resolve) {
+        const reader = new FileReader()
+
+        reader.addEventListener('load', () => {
+          resolve(reader.result)
+        }, false)
+
+        reader.readAsArrayBuffer(blob)
       })
     }
 
