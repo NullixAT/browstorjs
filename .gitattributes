@@ -15,3 +15,4 @@ build export-ignore
 tests export-ignore
 playwright.config.ts export-ignore
 tsconfig.json export-ignore
+package-lock.json export-ignore
