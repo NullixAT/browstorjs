@@ -49,12 +49,14 @@ library) and include `src/browstorjs.ts` wherever you need it.
 
 ##### Variant using NPM
 
-TBA. You know how to pack the library into your website when you opt in for using npm. It depends on your environment
+```npm install browstorjs```
+
+You know how to pack the library into your website when you opt in for using npm. It depends on your environment
 how you integrate the dist file.
 
 ##### Variant using CDN (Not recommended but handy for quick tests)
 
-TBA. Load it into your website `<script src="browstorjs.js"></script>`.
+Load it into your website `<script src="https://cdn.jsdelivr.net/npm/browstorjs/dist/browstorjs.js"></script>`.
 
 ## Event registration inside service worker :saxophone:
 
