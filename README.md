@@ -28,7 +28,7 @@ await db.getKeys() // ['mykey', ...]
 const db = await BrowstorJS.open('myotherdb') // get instance to a separate db
 ```
 
-Jump to [Event registration inside service worker](#event-registration-inside-service-worker) to make the
+Jump to [Event registration inside service worker](#event-registration-inside-service-worker-saxophone) to make the
 function `db.getUrl()` to actually work.
 
 ## Demo :space_invader:
