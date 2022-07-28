@@ -1,6 +1,6 @@
 ![Logo](docs/img/github-logo.png)
 
-# BrowstorJS :rocket: :floppy_disk: :lock:
+# BrowstorJS :rocket: :floppy_disk: :lock: ![Tests](https://github.com/NullixAT/browstorjs/actions/workflows/playwright.yml/badge.svg)
 
 Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service worker
 support, all with IndexedDB. Perfectly suitable for your next (PWA) app.
@@ -10,7 +10,7 @@ support, all with IndexedDB. Perfectly suitable for your next (PWA) app.
 * Simple Key/Value Data Storage in IndexedDB
 * Serve any storage value as a real URL (No Data URI) for Images, Files, etc...
 * Promisified for async/await support
-* Cross-Browser: Chrome, Firefox, WebKit, Edge New (Chromium), Edge Old v17+, and every other from the last year (No
+* Cross-Browser: Chrome, Firefox, WebKit, Edge New (Chromium), Edge Old v17+, and every other from the last years (But no
   Internet Explorer :trollface:)
 * Super Lightweight (~200 byte when gzipped)
 
@@ -39,12 +39,12 @@ Head to our [demo page](https://nullixat.github.io/browstorjs) to see and test t
 
 ##### Variant Self-Hosted Self-Download
 
-Download the [latest release](https://github.com/NullixAT/pagemyself/releases/latest), unpack the `dist/browstorjs.js`
+Download the [latest release](https://github.com/NullixAT/browstorjs/releases/latest), unpack the `dist/browstorjs.js`
 and load it into your website `<script src="browstorjs.js"></script>`.
 
 ##### Variant using TypeScript
 
-Download the  [latest release](https://github.com/NullixAT/pagemyself/releases/latest) (Or use NPM to install the
+Download the  [latest release](https://github.com/NullixAT/browstorjs/releases/latest) (Or use NPM to install the
 library) and include `src/browstorjs.ts` wherever you need it.
 
 ##### Variant using NPM
