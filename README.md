@@ -12,7 +12,8 @@ support, all with IndexedDB. Perfectly suitable for your next (PWA) app.
 * Promisified for async/await support
 * Cross-Browser: Chrome, Firefox, WebKit, Edge New (Chromium), Edge Old v17+, and every other from the last years (But no
   Internet Explorer :trollface:)
-* Super Lightweight (~200 byte when gzipped)
+* Super Lightweight (~200 byte when gzipped, 2.5kb uncompressed)
+* Notice: [A word about `persistence` in current browsers...](#persistence-browser-support)
 
 ## Usage :zap:
 
@@ -84,7 +85,17 @@ self.addEventListener('message', event => {
 })
 ```
 
-## Development in this library
+## Persistence - How browsers handle it :shipit:
+One thing you must have definetily in mind is that, to date, persistence in browser is wanky. IndexedDB Storage is persistence over time and after browser is closed, yes, but it can be wiped easily. Even when your app is installed as a PWA. By cleanup jobs, by long inactivity, by history cleanup, etc...
+
+For PWA (as of July 2022), unfortunetely, there is still no real 100% bullet-proof way to store data forever until the app is deleted, like you can do in native apps. We all hope, they will get this working soon.
+
+Here a few links to show how browser engines handle IndexedDB Storage, which BrowstorJS internally uses:
+* https://developer.chrome.com/docs/apps/offline_storage/
+* https://web.dev/indexeddb-best-practices/
+
+
+## Development in this library :love_letter:
 
 1. Create an issue for features and bugs
 2. Checkout master
