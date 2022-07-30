@@ -86,7 +86,7 @@ self.addEventListener('message', event => {
 ```
 
 ## Persistence - How browsers handle it :shipit:
-One thing you must have definetily in mind is that, to date, persistence in browser is wanky. IndexedDB Storage is persistence over time and after browser is closed, yes, but it can be wiped easily. Even when your app is installed as a PWA. By cleanup jobs, by long inactivity, by history cleanup, etc...
+One thing you must have definitely in mind is that, to date, persistence in browser is wanky. IndexedDB Storage is persistence over time and after browser is closed, yes, but it can be wiped easily. Even when your app is installed as a PWA. By cleanup jobs, by long inactivity, by history cleanup, etc...
 
 For PWA (as of July 2022), unfortunetely, there is still no real 100% bullet-proof way to store data forever until the app is deleted, like you can do in native apps. We all hope, they will get this working soon.
 
