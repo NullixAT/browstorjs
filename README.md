@@ -13,7 +13,7 @@ support, all with IndexedDB. Perfectly suitable for your next (PWA) app.
 * Cross-Browser: Chrome, Firefox, WebKit, Edge New (Chromium), Edge Old v17+, and every other from the last years (But no
   Internet Explorer :trollface:)
 * Super Lightweight (~200 byte when gzipped, 2.5kb uncompressed)
-* Notice: [A word about `persistence` in current browsers...](#persistence-browser-support)
+* Notice: [A word about `persistence` in current browsers...](#persistence---how-browsers-handle-it-shipit)
 
 ## Usage :zap:
 
