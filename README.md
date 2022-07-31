@@ -10,16 +10,16 @@ support, all with IndexedDB. Perfectly suitable for your next (PWA) app.
 * Simple Key/Value Data Storage in IndexedDB
 * Serve any storage value as a real URL (No Data URI) for Images, Files, etc...
 * Promisified for async/await support
-* Cross-Browser:
-    * Chrome (incl. incognito Mode)
-    * Firefox (No private mode)
-    * WebKit
-    * Safari
-    * Edge New (Chromium)
+* Cross-Browser
+    * Chrome (Mobile/Desktop incl. incognito mode)
+    * Firefox (Mobile/Desktop but not in private mode)
+    * Safari (Mobile/Desktop incl. partially in InPrivate Mode)
+    * Edge New (Chromium incl. private mode)
     * Edge Old v17+
+    * WebKit
     * and every other from the last years
     * No Internet Explorer :trollface:
-* Super Lightweight (~200 byte when gzipped, 2.5kb uncompressed)
+* Super Lightweight (~400 byte when gzipped, 3kb uncompressed)
 * Notice: [A word about `persistence` in current browsers...](#persistence---how-browsers-handle-it-shipit)
 
 ## Usage :zap:
