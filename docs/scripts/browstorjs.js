@@ -104,7 +104,7 @@ class BrowstorJS {
      */
     async set(key, value) {
         const self = this;
-        value = await self.convertValue(value);
+        value = await self.convertValue(value, 'data');
         return new Promise(async function (resolve, reject) {
             await self.checkConnection();
             const db = self.idb;
@@ -136,7 +136,7 @@ class BrowstorJS {
             const request = objectStore.get(key);
             request.onsuccess = function () {
                 // @ts-ignore
-                resolve(request.result && typeof request.result.value !== 'undefined' ? self.convertValue(request.result.value) : null);
+                resolve(request.result && typeof request.result.value !== 'undefined' ? self.convertValue(request.result.value, 'blob') : null);
             };
             request.onerror = function (e) {
                 console.error(e);
@@ -164,7 +164,7 @@ class BrowstorJS {
                 const cursor = event.target.result;
                 if (cursor) {
                     if (await callback(cursor.key, cursor.value)) {
-                        result[cursor.key] = await self.convertValue(cursor.value.value);
+                        result[cursor.key] = await self.convertValue(cursor.value.value, 'blob');
                     }
                     cursor.continue();
                 }
@@ -213,6 +213,23 @@ class BrowstorJS {
                     'browstorJsGetFileUrl': { 'dbName': self.dbName, 'key': key }
                 });
             });
+        });
+    }
+    /**
+     * Get a data uri that can be used as href or src for images
+     * If value in this key is not a file/blob than this will return a blank 1x1 pixel image data uri
+     * @param {string} key
+     * @return {Promise<string>}
+     */
+    async getDataUri(key) {
+        const value = await this.convertValue(await this.get(key), 'blob');
+        if (!(value instanceof Blob))
+            return 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+        return new Promise(function (resolve) {
+            const reader = new FileReader();
+            // @ts-ignore
+            reader.onload = function (e) { resolve(reader.result); };
+            reader.readAsDataURL(value);
         });
     }
     /**
@@ -354,14 +371,15 @@ class BrowstorJS {
      * Convert value from and to blob if required
      * Otherwise, just pass value through without modification
      * @param {any} value
+     * @param {string} to To which format: blob or data
      * @returns {Promise<any>}
      * @private
      */
-    async convertValue(value) {
-        if (value instanceof Blob) {
+    async convertValue(value, to) {
+        if (value instanceof Blob && to === 'data') {
             return this.blobToBlobDataObject(value);
         }
-        else if (typeof value === 'object' && typeof value.type !== 'undefined' && value.type === 'browstorJsBlobData') {
+        else if (to === 'blob' && typeof value === 'object' && typeof value.type !== 'undefined' && value.type === 'browstorJsBlobData') {
             return this.blobDataObjectToBlob(value);
         }
         else {

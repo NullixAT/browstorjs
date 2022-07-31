@@ -160,6 +160,16 @@
       await assert('_browstorJS/testvalue4/browstorjs_test', await db.getUrl('testvalue4'))
     })
 
+    addTest('Get data uri', async function () {
+      const db = await BrowstorJS.open(dbName)
+      const dataUriExpected = await (new Promise(await function (resolve) {
+        const reader = new FileReader()
+        reader.onload = function (e) {resolve(reader.result)}
+        reader.readAsDataURL(imageBlob)
+      }))
+      await assert(dataUriExpected, await db.getDataUri('testvalue4'))
+    })
+
     addTest('Check URL matching testfile', async function () {
       const db = await BrowstorJS.open(dbName)
       await assert(await (await fetch('img/testimage.png')).blob(), await (await fetch(await db.getUrl('testvalue4'))).blob())

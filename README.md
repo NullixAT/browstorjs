@@ -19,7 +19,7 @@ support, all with IndexedDB. Perfectly suitable for your next (PWA) app.
     * WebKit
     * and every other from the last years
     * No Internet Explorer :trollface:
-* Super Lightweight (~400 byte when gzipped, 3kb uncompressed)
+* Super Lightweight (~400 byte when gzipped, ~4kb uncompressed)
 * Notice: [A word about `persistence` in current browsers...](#persistence---how-browsers-handle-it-shipit)
 
 ## Usage :zap:
@@ -29,6 +29,7 @@ const db = await BrowstorJS.open() // get instance
 await db.set('mykey', 'myvalue') // set a value
 await db.get('mykey') // get a value
 await db.getUrl('mykey') // get a URL that serves the value from this key (eg.: for images)
+await db.getDataUri('mykey') // get a data uri (to use as image src for example) for the value of this key
 await db.search((key, value) => { return key.startsWith('mykey') }) // search entries with condition
 await db.remove('mykey') // remove a single key
 await db.reset() // clear the database, delete all entries
