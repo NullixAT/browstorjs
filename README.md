@@ -99,7 +99,7 @@ persistence over time and after browser is closed, yes, but it can be wiped easi
 PWA. By cleanup jobs, by long inactivity, by history cleanup, etc...
 
 For PWA (as of July 2022), unfortunetely, there is still no real 100% bullet-proof way to store data forever until the
-app is deleted, like you can do in native apps. We all hope, they will get this working soon.
+app is deleted, like you can do in native apps. We all hope that browser devs will fix this as soon as possible.
 
 Here a few links to show how browser engines handle IndexedDB Storage, which BrowstorJS internally uses:
 
