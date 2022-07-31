@@ -5,7 +5,11 @@
     <title>BrowstorJS Tests</title>
     <link rel="icon" href="img/logo.svg">
     <script>
-      navigator.serviceWorker.register('service-worker.js')
+      // just register service worker as usual
+      // is undefined in private browsing mode in some browsers, so just log this error
+      try {
+        navigator.serviceWorker.register('service-worker.js')
+      } catch (e) {console.error(e)}
     </script>
     <style>
       body {
@@ -149,6 +153,10 @@
 
     addTest('Get URL', async function () {
       const db = await BrowstorJS.open(dbName)
+      if (typeof navigator.serviceWorker === 'undefined') {
+        await assert('data:image/png', (await db.getUrl('testvalue4')).substring(0, 14))
+        return
+      }
       await assert('_browstorJS/testvalue4/browstorjs_test', await db.getUrl('testvalue4'))
     })
 

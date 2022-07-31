@@ -1,4 +1,4 @@
-// BrowstorJS v1.0.2 @ https://github.com/NullixAT/browstorjs
+// BrowstorJS v1.1.0 @ https://github.com/NullixAT/browstorjs
 /**
  * BrowstorJS
  * Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service worker support, all with IndexedDB.
@@ -104,6 +104,7 @@ class BrowstorJS {
      */
     async set(key, value) {
         const self = this;
+        value = await self.convertValue(value);
         return new Promise(async function (resolve, reject) {
             await self.checkConnection();
             const db = self.idb;
@@ -135,7 +136,7 @@ class BrowstorJS {
             const request = objectStore.get(key);
             request.onsuccess = function () {
                 // @ts-ignore
-                resolve(request.result && typeof request.result.value !== 'undefined' ? request.result.value : null);
+                resolve(request.result && typeof request.result.value !== 'undefined' ? self.convertValue(request.result.value) : null);
             };
             request.onerror = function (e) {
                 console.error(e);
@@ -163,7 +164,7 @@ class BrowstorJS {
                 const cursor = event.target.result;
                 if (cursor) {
                     if (await callback(cursor.key, cursor.value)) {
-                        result[cursor.key] = cursor.value.value;
+                        result[cursor.key] = await self.convertValue(cursor.value.value);
                     }
                     cursor.continue();
                 }
@@ -184,6 +185,21 @@ class BrowstorJS {
      */
     async getUrl(key) {
         const self = this;
+        // is undefined in private browsing mode in some browsers or in ancient browsers
+        if (typeof navigator.serviceWorker === 'undefined') {
+            const can = document.createElement('canvas');
+            can.width = 100;
+            can.height = 30;
+            const ctx = can.getContext('2d');
+            ctx.font = '9px sans-serif';
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, can.width, can.height);
+            ctx.fillStyle = 'white';
+            ctx.fillText('service worker unsupported', 1, 9, 100);
+            ctx.fillText('old browser or', 1, 18, 100);
+            ctx.fillText('in incognito mode', 1, 27, 100);
+            return can.toDataURL('image/png');
+        }
         return new Promise(function (resolve) {
             // get message from service worker that contains the url when everything is ready to serve this url
             navigator.serviceWorker.addEventListener('message', (evt) => {
@@ -232,7 +248,6 @@ class BrowstorJS {
             const db = self.idb;
             const transaction = db.transaction([self.dbName], 'readonly');
             const objectStore = transaction.objectStore(self.dbName);
-            const myIndex = objectStore.index('key');
             const request = objectStore.openCursor();
             const result = [];
             request.onsuccess = async function (event) {
@@ -308,6 +323,50 @@ class BrowstorJS {
             catch (e) {
             }
         });
+    }
+    /**
+     * Convert a blob into object with arraybuffer data
+     * @param {Blob} blob
+     * @returns {Promise<object>}
+     * @private
+     */
+    async blobToBlobDataObject(blob) {
+        const data = { 'type': 'browstorJsBlobData', 'blobData': null, 'blobType': blob.type };
+        return new Promise(function (resolve) {
+            const reader = new FileReader();
+            reader.addEventListener('load', () => {
+                data.blobData = reader.result;
+                resolve(data);
+            });
+            reader.readAsArrayBuffer(blob);
+        });
+    }
+    /**
+     * Convert a blob object with arraybuffer into blob
+     * @param {object} blobData
+     * @private
+     */
+    blobDataObjectToBlob(blobData) {
+        // @ts-ignore
+        return new Blob([blobData.blobData], { type: blobData.blobType });
+    }
+    /**
+     * Convert value from and to blob if required
+     * Otherwise, just pass value through without modification
+     * @param {any} value
+     * @returns {Promise<any>}
+     * @private
+     */
+    async convertValue(value) {
+        if (value instanceof Blob) {
+            return this.blobToBlobDataObject(value);
+        }
+        else if (typeof value === 'object' && typeof value.type !== 'undefined' && value.type === 'browstorJsBlobData') {
+            return this.blobDataObjectToBlob(value);
+        }
+        else {
+            return value;
+        }
     }
 }
 /**

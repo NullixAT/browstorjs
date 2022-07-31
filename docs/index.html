@@ -102,7 +102,7 @@
         width: 100%;
       }
 
-      table tr{
+      table tr {
         background: #f5f5f5;
       }
 
@@ -230,7 +230,10 @@
     }
 
     // just register service worker as usual
-    const serviceWorker = await navigator.serviceWorker.register('service-worker.js')
+    // is undefined in private browsing mode in some browsers, so just log this error
+    try {
+      navigator.serviceWorker.register('service-worker.js')
+    } catch (e) {console.error(e)}
 
     document.querySelector('#create-image').addEventListener('click', async function () {
       const db = await BrowstorJS.open()
