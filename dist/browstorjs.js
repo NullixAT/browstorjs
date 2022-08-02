@@ -1,4 +1,4 @@
-// BrowstorJS v1.1.0 @ https://github.com/NullixAT/browstorjs
+// BrowstorJS v1.2.0 @ https://github.com/NullixAT/browstorjs
 /**
  * BrowstorJS
  * Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service worker support, all with IndexedDB.

@@ -204,7 +204,7 @@
     })
 
     addTest('Request persistent permission with user click', async function () {
-      await assert(true, await BrowstorJS.requestPersistentStorage(dbName))
+      await assert(true, typeof (await BrowstorJS.requestPersistentStorage()) === 'boolean')
     }, true)
 
     addTest('Reset', async function () {
