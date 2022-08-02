@@ -61,6 +61,31 @@ class BrowstorJS {
         return false;
     }
     /**
+     * Request persistent storage that is not cleared by default browser clearing mechanism
+     * Call this function only inside a user gesture event (click), otherwise it may not work in some browsers
+     * See https://web.dev/persistent-storage/ for more information
+     * Safari, Old Edge and older browsers in general don't support this
+     * @returns {Promise<boolean>}
+     */
+    static async requestPersistentStorage() {
+        if (!navigator.storage || !navigator.storage.persist)
+            return false;
+        if (await navigator.storage.persisted())
+            return true;
+        return await navigator.storage.persist();
+    }
+    /**
+     * Get storage space info in bytes
+     * If a browser don't support this, it will return -1 values
+     * @returns {Promise<{available:number, used:number, free:number}>}
+     */
+    static async getStorageSpaceInfo() {
+        if (!navigator.storage || !navigator.storage.estimate)
+            return { available: -1, used: -1, free: -1 };
+        const est = await navigator.storage.estimate();
+        return { available: est.quota, used: est.usage, free: est.quota - est.usage };
+    }
+    /**
      * Get/Create instance for given db name
      * @param {string} dbName
      * @returns {Promise<BrowstorJS>}

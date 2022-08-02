@@ -35,6 +35,8 @@ await db.remove('mykey') // remove a single key
 await db.reset() // clear the database, delete all entries
 await db.getKeys() // ['mykey', ...]
 const db = await BrowstorJS.open('myotherdb') // get instance to a separate db
+const isPersistent = await BrowstorJS.requestPersistentStorage() // request persistent storage
+const info = await BrowstorJS.getStorageSpaceInfo() // {available:number, used:number, free:number}
 ```
 
 Jump to [Event registration inside service worker](#event-registration-inside-service-worker-saxophone) to make the

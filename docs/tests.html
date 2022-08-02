@@ -39,16 +39,18 @@
 <script src="scripts/browstorjs.js"></script>
 <script>
   (async function () {
-    function addTest (title, test) {
-      const id = tests.length
+    function addTest (title, test, userGesture) {
+      const id = tests.length.toString()
       const el = document.createElement('div')
       el.classList.add('test')
       el.dataset.id = id
-      el.innerHTML = `
+      let html = `
             <h2>${title}</h2>
       `
+      if (userGesture) html += '<button class="run-test">Run test</button>'
+      el.innerHTML = html
       testsEl.appendChild(el)
-      tests.push({ 'title': title, 'test': test, 'el': el })
+      tests.push({ 'title': title, 'test': test, 'el': el, 'userGesture': userGesture })
     }
 
     async function runTests () {
@@ -62,7 +64,16 @@
         const testTitle = (i + 1) + ' \'' + test.title + '\''
         title.innerHTML = 'Running Test ' + testTitle + ' from ' + tests.length
         console.log('===TEST ' + testTitle + ' STARTED===')
-        await test.test()
+        if (test.userGesture) {
+          await new Promise(function (resolve) {
+            test.el.querySelector('button').addEventListener('click', function (ev) {
+              ev.target.remove()
+              resolve(test.test())
+            })
+          })
+        } else {
+          await test.test()
+        }
         clearTimeout(to)
         test.el.innerHTML += '<br/><span style="color: green">Finished</span>'
         console.log('===TEST ' + testTitle + ' FINISHED===')
@@ -185,6 +196,16 @@
       db.idb.close()
       await assert(['testvalue2', 'testvalue3', 'testvalue4'], await db.getKeys())
     })
+
+    addTest('Get storage space info', async function () {
+      const db = await BrowstorJS.open(dbName)
+      db.idb.close()
+      await assert(true, (await BrowstorJS.getStorageSpaceInfo()).free > -2)
+    })
+
+    addTest('Request persistent permission with user click', async function () {
+      await assert(true, await BrowstorJS.requestPersistentStorage(dbName))
+    }, true)
 
     addTest('Reset', async function () {
       const db = await BrowstorJS.open(dbName)
