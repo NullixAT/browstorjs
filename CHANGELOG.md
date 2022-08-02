@@ -1,4 +1,4 @@
-## [1.2.0] TBA
+## [1.2.0] 2022-08-02
 
 * added `requestPersistentStorage` and `getStorageSpaceInfo`
 
