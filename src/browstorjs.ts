@@ -47,10 +47,11 @@ export default class BrowstorJS {
         const msg = event.data
         if (!msg || !msg.browstorJsGetFileUrl) return false
         // @ts-ignore
+        const urlData = msg.browstorJsGetFileUrl
         event.source.postMessage({
           'browstorJsFileUrl': {
             'key': msg.browstorJsGetFileUrl.key,
-            'url': fileUrlPrefix + msg.browstorJsGetFileUrl.key + '/' + msg.browstorJsGetFileUrl.dbName
+            'url': fileUrlPrefix + urlData.key + '/' + urlData.dbName + (urlData.addAntiCacheParam ? '?c=' + Math.random() : '')
           }
         })
         break
@@ -63,7 +64,7 @@ export default class BrowstorJS {
 
         const urlSplit = url.split('/')
         const key = urlSplit[urlSplit.length - 2]
-        const dbName = urlSplit[urlSplit.length - 1]
+        const dbName = urlSplit[urlSplit.length - 1].split('?')[0]
 
         // @ts-ignore
         event.respondWith(new Promise<Response>(async function (resolve) {
@@ -226,9 +227,12 @@ export default class BrowstorJS {
   /**
    * Get file url to given storage key
    * @param {string} key
-   * @return {Promise<string>}
+   * @param {boolean} nullIfKeyNotExist Return null when the key not exist in db (default is return the url anyway)
+   * @param {boolean} addAntiCacheParam Add ?c=randomnumber to the generated to prevent browser memory-caching
+   * @return {Promise<string|null>} Null if key does not exist and option is enabled
    */
-  async getUrl (key: string): Promise<string> {
+  async getUrl (key: string, nullIfKeyNotExist = false, addAntiCacheParam: false): Promise<string | null> {
+    if (nullIfKeyNotExist && !(await this.get(key))) return null
     const self = this
     // is undefined in private browsing mode in some browsers or in ancient browsers
     if (typeof navigator.serviceWorker === 'undefined') {
@@ -255,7 +259,7 @@ export default class BrowstorJS {
       // send message to service worker to request the file url
       navigator.serviceWorker.ready.then(function (serviceWorker) {
         serviceWorker.active.postMessage({
-          'browstorJsGetFileUrl': { 'dbName': self.dbName, 'key': key }
+          'browstorJsGetFileUrl': { 'dbName': self.dbName, 'key': key, 'addAntiCacheParam': addAntiCacheParam }
         })
       })
     })
@@ -263,13 +267,13 @@ export default class BrowstorJS {
 
   /**
    * Get a data uri that can be used as href or src for images
-   * If value in this key is not a file/blob than this will return a blank 1x1 pixel image data uri
    * @param {string} key
+   * @param {string|null} defaultReturn The default value that is returned in case the key does not exist
    * @return {Promise<string>}
    */
-  async getDataUri (key: string): Promise<string> {
+  async getDataUri (key: string, defaultReturn: string | null = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='): Promise<string> {
     const value = await this.convertValue(await this.get(key), 'blob')
-    if (!(value instanceof Blob)) return 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='
+    if (!(value instanceof Blob)) return defaultReturn
     return new Promise<string>(function (resolve) {
       const reader = new FileReader()
       // @ts-ignore
@@ -426,7 +430,9 @@ export default class BrowstorJS {
    * @private
    */
   private async convertValue (value: any, to): Promise<any> {
-    if (value instanceof Blob && to === 'data') {
+    if (value === null || value === undefined) {
+      return null
+    } else if (value instanceof Blob && to === 'data') {
       return this.blobToBlobDataObject(value)
     } else if (to === 'blob' && typeof value === 'object' && typeof value.type !== 'undefined' && value.type === 'browstorJsBlobData') {
       return this.blobDataObjectToBlob(value)
