@@ -1,7 +1,7 @@
 {
   "name": "browstorjs",
-  "version": "1.3.0",
-  "description": "Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service worker support, all with IndexedDB.",
+  "version": "2.0.0",
+  "description": "Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service worker support, all with IndexedDB or the Filesystem API (Makes it real persistent).",
   "scripts": {
     "dist": "node ./node_modules/typescript/bin/tsc --project tsconfig.json && node build/dist.js"
   },

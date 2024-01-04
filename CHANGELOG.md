@@ -1,3 +1,7 @@
+## [2.0.0] TBA
+
+* 🎉🎉🎉 added `Filesystem API` support for best data persistence - Data will resist even if user decide to clear browser history
+
 ## [1.3.0] 2023-01-31
 
 * added `addAntiCacheParam` parameter to `getUrl` to add a random string to generated urls to prevent browser memory-caching

@@ -2,30 +2,34 @@
 
 # BrowstorJS :rocket: :floppy_disk: :lock: [![Tests](https://github.com/NullixAT/browstorjs/actions/workflows/playwright.yml/badge.svg)](https://github.com/NullixAT/browstorjs/actions/workflows/playwright.yml)
 
+> [!NOTE]  
+> Currently working on v2 that will include Filesystem API storage as well. For production uses use the stable v1 releases for now.
+
 Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service worker
-support, all with IndexedDB. Perfectly suitable for your next (PWA) app.
+support, all with IndexedDB or Filesystem API. Perfectly suitable for your next (PWA) app.
 
 ## Features :mega:
 
-* Simple Key/Value Data Storage in IndexedDB
+* Simple Key/Value Data Storage
 * Serve any storage value as a real URL (No Data URI) for Images, Files, etc...
 * Promisified for async/await support
+* Storage in IndexedDB (Traditional) or Filesystem API (New, best persistence)
 * Cross-Browser
-    * Chrome (Mobile/Desktop incl. incognito mode)
-    * Firefox (Mobile/Desktop but not in private mode)
-    * Safari (Mobile/Desktop incl. partially in InPrivate Mode)
-    * Edge New (Chromium incl. private mode)
-    * Edge Old v17+
+    * Chrome (IDB and/or Filesystem, Mobile/Desktop incl. incognito mode)
+    * Firefox (IDB and/or Filesystem, Mobile/Desktop but not in private mode)
+    * Safari (IDB and/or Filesystem, Mobile/Desktop incl. partially in InPrivate Mode)
+    * Edge New (IDB and/or Filesystem, Chromium incl. private mode)
+    * Edge Old v17+ (IDB only)
     * WebKit
     * and every other from the last years
     * No Internet Explorer :trollface:
-* Super Lightweight (~400 byte when gzipped, ~4kb uncompressed)
+* Super Lightweight (~800 byte when gzipped, ~8kb uncompressed)
 * Notice: [A word about `persistence` in current browsers...](#persistence---how-browsers-handle-it-shipit)
 
 ## Usage :zap:
 
 ```javascript
-const db = await BrowstorJS.open() // get instance
+const db = await BrowstorJS.open('browstorjs', true) // get instance that is using filesystem api and IDB as fallback
 await db.set('mykey', 'myvalue') // set a value
 await db.get('mykey') // get a value
 await db.getUrl('mykey') // get a URL that serves the value from this key (eg.: for images)
@@ -34,8 +38,8 @@ await db.search((key, value) => { return key.startsWith('mykey') }) // search en
 await db.remove('mykey') // remove a single key
 await db.reset() // clear the database, delete all entries
 await db.getKeys() // ['mykey', ...]
-const db = await BrowstorJS.open('myotherdb') // get instance to a separate db
-const isPersistent = await BrowstorJS.requestPersistentStorage() // request persistent storage
+const db = await BrowstorJS.open('myotherdb') // get instance to a separate db with only IDB support
+const isPersistent = await BrowstorJS.requestPersistentStorage() // request persistent storage (for IDB usage)
 const info = await BrowstorJS.getStorageSpaceInfo() // {available:number, used:number, free:number}
 ```
 
@@ -71,6 +75,9 @@ Load it into your website `<script src="https://cdn.jsdelivr.net/npm/browstorjs/
 
 ## Event registration inside service worker :saxophone:
 
+> [!NOTE]  
+> This step is required when you use (or fallback to) the Indexed DB mode mode (Second `open` parameter is false or browser do not support Filesystem API).
+
 To make the generation of `getUrl` work, you need to handle some service worker events. If you don't need `getUrl` you
 also don't necessarily need a service worker.
 
@@ -97,12 +104,16 @@ self.addEventListener('message', event => {
 
 ## Persistence - How browsers handle it :shipit:
 
-One thing you must have definitely in mind is that, to date, persistence in browser is wanky. IndexedDB Storage is
+One thing you must have definitely in mind is that, to date, persistence in browser is different. 
+
+First, when you use the new Filesystem API (Second `open` is `true`), your data should be as most persistent as it can be. Simply because a normal "clear history" will not erase this data. IndexedDB will be wiped with this actions.
+
+IndexedDB Storage is
 persistence over time and after browser is closed, yes, but it can be wiped easily. Even when your app is installed as a
 PWA. By cleanup jobs, by long inactivity, by history cleanup, etc...
 
 For PWA (as of July 2022), unfortunetely, there is still no real 100% bullet-proof way to store data forever until the
-app is deleted, like you can do in native apps. We all hope that browser devs will fix this as soon as possible.
+app is deleted, like you can do in native apps. However, Filesystem API getting close to that. We all hope that browser devs will fix this as soon as possible.
 
 Here a few links to show how browser engines handle IndexedDB Storage, which BrowstorJS internally uses:
 

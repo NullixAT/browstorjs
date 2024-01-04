@@ -6,9 +6,19 @@
 export default class BrowstorJS {
 
   /**
+   * The worker thread
+   */
+  public worker: Worker
+
+  /**
    * The opened idb database
    */
   public idb: IDBDatabase
+
+  /**
+   * The instance id
+   */
+  public instanceId: string
 
   /**
    * The db name
@@ -16,10 +26,23 @@ export default class BrowstorJS {
   public dbName: string
 
   /**
+   * Internal counter for the worker messages
+   * @private
+   */
+  private workerMsgCount: number = 0
+
+  /**
+   * Internal callbacks for the worker messages
+   * @type {Object<number, function>}
+   * @private
+   */
+  private workerMsgCallbacks = {}
+
+  /**
    * All instances
    * @type {Object<string, BrowstorJS>}
    */
-  private static instances = {}
+  private static instances: { [s: string]: BrowstorJS } = {}
 
   /**
    * Handle service worker events
@@ -51,7 +74,7 @@ export default class BrowstorJS {
         event.source.postMessage({
           'browstorJsFileUrl': {
             'key': msg.browstorJsGetFileUrl.key,
-            'url': fileUrlPrefix + urlData.key + '/' + urlData.dbName + (urlData.addAntiCacheParam ? '?c=' + Math.random() : '')
+            'url': fileUrlPrefix + urlData.key + '/' + urlData.filesystemApi + '/' + urlData.dbName + (urlData.addAntiCacheParam ? '?c=' + Math.random() : '')
           }
         })
         break
@@ -63,12 +86,13 @@ export default class BrowstorJS {
         }
 
         const urlSplit = url.split('/')
-        const key = urlSplit[urlSplit.length - 2]
+        const key = urlSplit[urlSplit.length - 3]
+        const filesystemApi = urlSplit[urlSplit.length - 2]
         const dbName = urlSplit[urlSplit.length - 1].split('?')[0]
 
         // @ts-ignore
         event.respondWith(new Promise<Response>(async function (resolve) {
-          const value = await (await BrowstorJS.open(dbName)).get(key)
+          const value = await (await BrowstorJS.open(dbName, filesystemApi === '1')).get(key)
           resolve(new Response(value, {
             'status': value === null ? 404 : 200,
             'statusText': 'browstorJs File'
@@ -104,23 +128,43 @@ export default class BrowstorJS {
   }
 
   /**
+   * Check if the filesystem api is available on this device
+   */
+  static isFilesystemApiAvailable (): boolean {
+    return !(typeof Worker === 'undefined' || typeof navigator === 'undefined' || typeof navigator.storage === 'undefined' || typeof navigator.storage.getDirectory === 'undefined')
+  }
+
+  /**
    * Get/Create instance for given db name
    * @param {string} dbName
+   * @param {boolean} useFilesystemApi Use the Filesystem API with OPFS instead of IndexedDB (Recommended for better persistance)
+   *  If the API is not available on the users device, it will fallback to IndexedDB instead
    * @returns {Promise<BrowstorJS>}
    */
-  static async open (dbName: string = 'browstorJs'): Promise<BrowstorJS> {
-    if (typeof BrowstorJS.instances[dbName] !== 'undefined' && BrowstorJS.instances[dbName]) return BrowstorJS.instances[dbName]
+  static async open (dbName: string = 'browstorJs', useFilesystemApi: boolean = false): Promise<BrowstorJS> {
+    const instanceId = dbName + '__' + (useFilesystemApi ? '1' : '0')
+    if (typeof BrowstorJS.instances[instanceId] !== 'undefined' && BrowstorJS.instances[instanceId]) return BrowstorJS.instances[instanceId]
+
+    const db = new BrowstorJS()
+    db.instanceId = instanceId
+
+    if (useFilesystemApi && BrowstorJS.isFilesystemApiAvailable()) {
+      db.instanceId = instanceId
+      BrowstorJS.instances[db.instanceId] = db
+      db.dbName = dbName
+      await db.startFilesystemWorker()
+      return db
+    }
 
     return new Promise<BrowstorJS>(function (resolve, reject) {
       const request = indexedDB.open(dbName, 1)
       request.onsuccess = function () {
-        const db = new BrowstorJS()
-        BrowstorJS.instances[dbName] = db
+        BrowstorJS.instances[db.instanceId] = db
         db.dbName = dbName
         db.idb = request.result
         // on db close, unset instance to make it reload
         db.idb.addEventListener('close', function () {
-          BrowstorJS.instances[dbName] = null
+          BrowstorJS.instances[db.instanceId] = null
         })
         resolve(db)
       }
@@ -139,6 +183,32 @@ export default class BrowstorJS {
   }
 
   /**
+   * Post a message to the filesystem worker and return the result
+   * @param {string} type
+   * @param {string} key
+   * @param {*} data
+   * @returns {Promise<any>}
+   */
+  async postMessageToWorker (type: string, key: string = null, data: any = null): Promise<any> {
+    const self = this
+    const id = self.workerMsgCount
+    self.workerMsgCount++
+    return new Promise(async function (resolve) {
+      self.workerMsgCallbacks[id] = async function (message: any) {
+        delete self.workerMsgCallbacks[id]
+        resolve(message)
+      }
+      self.worker.postMessage({
+        'id': id,
+        'type': type,
+        'dbName': self.dbName,
+        'key': key,
+        'data': data
+      })
+    })
+  }
+
+  /**
    * Set value for given key
    * For files, the value should be a Blob
    * @param {string} key
@@ -147,6 +217,11 @@ export default class BrowstorJS {
    */
   async set (key: string, value: any): Promise<void> {
     const self = this
+    if (this.worker) {
+      await this.checkConnection()
+      await this.postMessageToWorker('write', key, value)
+      return
+    }
     value = await self.convertValue(value, 'data')
     return new Promise<void>(async function (resolve, reject) {
       await self.checkConnection()
@@ -172,6 +247,10 @@ export default class BrowstorJS {
    */
   async get (key: string): Promise<any> {
     const self = this
+    if (this.worker) {
+      await this.checkConnection()
+      return (await this.postMessageToWorker('read', key)).contents
+    }
     return new Promise<any>(async function (resolve, reject) {
       await self.checkConnection()
       const db = self.idb
@@ -197,6 +276,19 @@ export default class BrowstorJS {
    */
   async search (callback: (key: string, value: any) => Promise<boolean>): Promise<Object> {
     const self = this
+    if (this.worker) {
+      await this.checkConnection()
+      const list = (await this.postMessageToWorker('list')).list
+      const result = {}
+      for (let i = 0; i < list.length; i++) {
+        const key = list[i]
+        const value = await this.get(key)
+        if (await callback(key, value)) {
+          result[key] = value
+        }
+      }
+      return result
+    }
     return new Promise<any>(async function (resolve, reject) {
       await self.checkConnection()
       const db = self.idb
@@ -232,8 +324,10 @@ export default class BrowstorJS {
    * @return {Promise<string|null>} Null if key does not exist and option is enabled
    */
   async getUrl (key: string, nullIfKeyNotExist = false, addAntiCacheParam: false): Promise<string | null> {
-    if (nullIfKeyNotExist && !(await this.get(key))) return null
-    const self = this
+    if (this.worker) {
+      await this.checkConnection()
+      return (await this.postMessageToWorker('read-url', key)).url || nullIfKeyNotExist
+    }
     // is undefined in private browsing mode in some browsers or in ancient browsers
     if (typeof navigator.serviceWorker === 'undefined') {
       const can = document.createElement('canvas')
@@ -249,6 +343,7 @@ export default class BrowstorJS {
       ctx.fillText('in incognito mode', 1, 27, 100)
       return can.toDataURL('image/png')
     }
+    const self = this
     return new Promise<string>(function (resolve) {
       // get message from service worker that contains the url when everything is ready to serve this url
       navigator.serviceWorker.addEventListener('message', (evt) => {
@@ -259,7 +354,12 @@ export default class BrowstorJS {
       // send message to service worker to request the file url
       navigator.serviceWorker.ready.then(function (serviceWorker) {
         serviceWorker.active.postMessage({
-          'browstorJsGetFileUrl': { 'dbName': self.dbName, 'key': key, 'addAntiCacheParam': addAntiCacheParam }
+          'browstorJsGetFileUrl': {
+            'dbName': self.dbName,
+            'filesystemApi': self.worker ? 1 : 0,
+            'key': key,
+            'addAntiCacheParam': addAntiCacheParam
+          }
         })
       })
     })
@@ -272,7 +372,7 @@ export default class BrowstorJS {
    * @return {Promise<string>}
    */
   async getDataUri (key: string, defaultReturn: string | null = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='): Promise<string> {
-    const value = await this.convertValue(await this.get(key), 'blob')
+    const value = await this.get(key)
     if (!(value instanceof Blob)) return defaultReturn
     return new Promise<string>(function (resolve) {
       const reader = new FileReader()
@@ -287,8 +387,13 @@ export default class BrowstorJS {
    * @param {string} key
    * @returns {Promise<void>}
    */
-  async remove (key: string) {
+  async remove (key: string): Promise<void> {
     const self = this
+    if (this.worker) {
+      await this.checkConnection()
+      await this.postMessageToWorker('remove', key)
+      return
+    }
     return new Promise<void>(async function (resolve, reject) {
       await self.checkConnection()
       const db = self.idb
@@ -306,11 +411,15 @@ export default class BrowstorJS {
   }
 
   /**
-   * Get all keys
+   * Get all keys stored in the database
    * @returns {Promise<string[]>}
    */
   async getKeys (): Promise<string[]> {
     const self = this
+    if (this.worker) {
+      await this.checkConnection()
+      return (await this.postMessageToWorker('list')).list
+    }
     return new Promise<string[]>(async function (resolve, reject) {
       await self.checkConnection()
       const db = self.idb
@@ -342,6 +451,11 @@ export default class BrowstorJS {
    */
   async reset (): Promise<void> {
     const self = this
+    if (this.worker) {
+      await this.checkConnection()
+      await this.postMessageToWorker('reset')
+      return
+    }
     return new Promise<void>(async function (resolve, reject) {
       await self.checkConnection()
       const db = self.idb
@@ -359,12 +473,31 @@ export default class BrowstorJS {
   }
 
   /**
-   * Check connection and reconnect when db has been closed/destroyed
+   * Check connection and reconnect when db/worker has been closed/destroyed/terminated
+   * @param {number} retryCounter The number of retries already done
    * @private
    * @returns {Promise<void>}
    */
-  private checkConnection (): Promise<void> {
+  private async checkConnection (retryCounter: number = 1): Promise<void> {
     let self = this
+    if (this.worker) {
+      const maxRetries = 50
+      if (retryCounter >= maxRetries) {
+        throw new Error('Cannot connect to the Filesystem service worker')
+      }
+      return new Promise(async function (resolve) {
+        const timeout = setTimeout(async function () {
+          // if we reach the timeout (worker does not answer), we consider it broken
+          // recreate in this case and re-check
+          console.warn('Recreate BrowstorJS Filesystem Worker connection after inactivity')
+          self.startFilesystemWorker()
+          resolve(self.checkConnection(retryCounter + 1))
+        }, 100)
+        await self.postMessageToWorker('init')
+        clearTimeout(timeout)
+        resolve()
+      })
+    }
     return new Promise<void>(async function (resolve, reject) {
       const db = self.idb
       // when a transaction can't be opened, close db and reopen it
@@ -380,9 +513,10 @@ export default class BrowstorJS {
 
       }
       try {
+        console.warn('Recreate BrowstorJS DB connection after inactivity')
         if (transaction) transaction.abort()
         if (self.idb) self.idb.close()
-        BrowstorJS.instances[self.dbName] = null
+        BrowstorJS.instances[self.instanceId] = null
         const newInstance = await BrowstorJS.open(self.dbName)
         self.idb = newInstance.idb
         resolve()
@@ -439,5 +573,188 @@ export default class BrowstorJS {
     } else {
       return value
     }
+  }
+
+  /**
+   * Starting the filesystem worker thread
+   * @private
+   */
+  private async startFilesystemWorker (): Promise<void> {
+    const selfInstance = this
+    // language=js
+    const workerJs =  /** @lang JavaScript */ `
+      const maxRetries = 500
+      const directoryHandles = {}
+
+      async function wait (ms) {
+        return new Promise(function (resolve) {
+          setTimeout(resolve, ms)
+        })
+      }
+
+      async function getDirectory (dbName) {
+        if (directoryHandles[dbName]) {
+          return directoryHandles[dbName]
+        }
+        const root = await navigator.storage.getDirectory()
+        directoryHandles[dbName] = await root.getDirectoryHandle('browstorjs-' + dbName, { create: true })
+        return true
+      }
+
+      async function getFileHandle (dbName, filename, create) {
+        let retry = 1
+        while (retry <= maxRetries) {
+          retry++
+          try {
+
+            const root = await getDirectory(dbName)
+            return await root.getFileHandle(filename, { 'create': create })
+          } catch (e) {
+            // not found exception
+            if (e.code === 8 && !create) {
+              return null
+            }
+            console.error(e)
+            await wait(10)
+          }
+        }
+        throw new Error('Cannot read ' + filename)
+      }
+
+      async function getFile (dbName, filename, create) {
+        const handle = await getFileHandle(dbName, filename, create)
+        if (handle) return handle.createSyncAccessHandle()
+        return null
+      }
+
+      onmessage = async (e) => {
+        const message = e.data
+        let filename = ''
+        if (message.key) {
+          filename = message.key.replace(/[^a-z0-9-_]/ig, '-')
+        }
+        if (message.type === 'init') {
+          await getDirectory(message.dbName)
+          self.postMessage({ 'id': message.id })
+        }
+        if (message.type === 'list') {
+          const filenames = []
+          const root = await getDirectory(message.dbName)
+          for await (const handle of root.values()) {
+            if (handle.kind === "file") {
+              const file = await handle.getFile();
+              if (file !== null && !file.name.endsWith('.meta.json')) {
+                filenames.push(file.name)
+              }
+            }
+          }
+          filenames.sort()
+          self.postMessage({ 'id': message.id, 'list': filenames })
+        }
+        if (message.type === 'read-url') {
+          let accessHandle = await getFileHandle(message.dbName, filename, false)
+          let url = null
+          if (accessHandle) {
+            url = URL.createObjectURL(await accessHandle.getFile())
+          }
+          self.postMessage({ 'id': message.id, 'url': url })
+        }
+        if (message.type === 'read') {
+          let accessHandle = await getFile(message.dbName, filename, false)
+          let fileBuffer = null
+          let meta = null
+          let contents = null
+          if (accessHandle) {
+            const arrayBuffer = new ArrayBuffer(accessHandle.getSize())
+            fileBuffer = new DataView(arrayBuffer)
+            accessHandle.read(fileBuffer, { at: 0 })
+            accessHandle.close()
+
+            accessHandle = await getFile(message.dbName, filename + ".meta.json", false)
+            if (accessHandle) {
+              const metaBuffer = new DataView(new ArrayBuffer(accessHandle.getSize()))
+              accessHandle.read(metaBuffer, { at: 0 })
+              accessHandle.close()
+              meta = JSON.parse((new TextDecoder()).decode(metaBuffer))
+            }
+
+          }
+          if (fileBuffer && meta) {
+            if (meta.type === 'blob') {
+              contents = new Blob([fileBuffer], { 'type': meta.blobType })
+            }
+            if (meta.type === 'json') {
+              contents = (new TextDecoder()).decode(fileBuffer)
+              try {
+                contents = JSON.parse(contents)
+              } catch (e) {
+                console.error(e)
+              }
+            }
+          }
+          self.postMessage({ 'id': message.id, 'contents': contents })
+        }
+        if (message.type === 'write') {
+          let accessHandle = await getFile(message.dbName, filename, true)
+          if (!accessHandle) {
+            throw new Error('Cannot open file ' + filename)
+          }
+          let contents = message.data
+          let meta = { 'type': 'json' }
+          if (contents instanceof Blob) {
+            meta = { 'type': 'blob', 'blobType': contents.type }
+            contents = await new Promise(function (resolve) {
+              const reader = new FileReader()
+              reader.addEventListener('load', () => {
+                resolve(reader.result)
+              })
+              reader.readAsArrayBuffer(contents)
+            })
+          } else {
+            contents = new TextEncoder().encode(JSON.stringify(contents))
+          }
+          accessHandle.write(contents, { at: 0 })
+          accessHandle.flush()
+          accessHandle.close()
+          accessHandle = await getFile(message.dbName, filename + ".meta.json", true)
+          accessHandle.write((new TextEncoder()).encode(JSON.stringify(meta)), { at: 0 })
+          accessHandle.flush()
+          accessHandle.close()
+          self.postMessage({ 'id': message.id })
+        }
+        if (message.type === 'remove') {
+          const accessHandle = await getFile(message.dbName, filename, false)
+          if (accessHandle) {
+            accessHandle.close()
+            const root = await getDirectory(message.dbName)
+            try {
+              await root.removeEntry(filename)
+              await root.removeEntry(filename + ".meta.json")
+            } catch (e) {
+              console.error(e)
+            }
+            self.postMessage({ 'id': message.id })
+          }
+        }
+        if (message.type === 'reset') {
+          const root = await navigator.storage.getDirectory()
+          await root.removeEntry('browstorjs-' + message.dbName, { 'recursive': true })
+          delete directoryHandles[message.dbName]
+          self.postMessage({ 'id': message.id })
+        }
+      };
+    `
+    // terminate old worker if any exist
+    if (selfInstance.worker) {
+      selfInstance.worker.terminate()
+    }
+    selfInstance.worker = new Worker(URL.createObjectURL(new Blob([workerJs], { type: 'application/javascript' })))
+    selfInstance.worker.addEventListener('message', function (e) {
+      const message = e.data
+      if (selfInstance.workerMsgCallbacks[message.id]) {
+        selfInstance.workerMsgCallbacks[message.id](message)
+      }
+    })
+    await selfInstance.postMessageToWorker('init')
   }
 }

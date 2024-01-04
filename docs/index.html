@@ -9,7 +9,7 @@
         --main-color-hue: 159;
       }
       body {
-        background: white;
+        background: #0f0f13;
         text-align: center;
         font-size: 18px;
         line-height: 1.5;
@@ -17,6 +17,14 @@
         font-family: Arial, sans-serif;
         padding: 0;
         margin: 0;
+      }
+
+      select, input {
+        font-size: 18px;
+        line-height: 1.5;
+        color: #222;
+        font-family: Arial, sans-serif;
+        padding: 5px;
       }
 
       .wide {
@@ -28,9 +36,6 @@
         background-image: repeating-linear-gradient(45deg, var(--color-1) 0, var(--color-1) 32px, var(--color-2) 32px, var(--color-2) 64px);
         color: white;
         font-family: "Georgia", serif;
-        box-shadow: hsla(var(--main-color-hue), 74%, 59%, 1) 0 0 10px;
-        border-top: 1px solid white;
-        border-bottom: 1px solid white;
         text-shadow: rgba(0, 0, 0, 0.2) 2px 2px 2px, rgba(0, 0, 0, 0.2) -1px -1px 1px;
       }
       .wide h1 {
@@ -71,7 +76,7 @@
       .page {
         max-width: 900px;
         padding: 20px;
-        border-radius: 20px;
+        border-radius: 30px;
         margin: 20px auto;
         background: white;
       }
@@ -179,10 +184,17 @@
 <div class="page">
     <p>
         Persistent key/value data storage for your Browser and/or PWA, promisified, including file support and service
-        worker support, all with IndexedDB. Perfectly suitable for your next (PWA) app.
+        worker support, all with IndexedDB or Filesystem API. Perfectly suitable for your next (PWA) app.
     </p>
     <div class="spacer"></div>
     <h2>Try it out yourself</h2>
+    <label>
+        Storage Location <select id="method">
+        <option value="filesystem" selected>Filesystem API</option>
+        <option value="default">Indexed DB</option>
+    </select>
+    </label>
+    <br/><br/>
     <div class="buttons">
         <button id="create-entry">+ Add Random Entry</button>
         <button id="create-image">+ Add Random Image</button>
@@ -200,7 +212,7 @@
 <script>
   (async function () {
     async function updateTable () {
-      const db = await BrowstorJS.open()
+      const db = await BrowstorJS.open('browstorJs', filesystemApi)
       const keys = await db.getKeys()
       keys.sort(function (a, b) {
         a = a.split('-')[1]
@@ -229,6 +241,12 @@
       tbody.innerHTML = html
     }
 
+    const filesystemApi = !window.location.search.includes('method=default')
+    document.querySelector('#method').value = filesystemApi ? 'filesystem' : 'default'
+    document.querySelector('#method').addEventListener('change', function () {
+      window.location.search = '?method=' + this.value
+    })
+
     // just register service worker as usual
     // is undefined in private browsing mode in some browsers, so just log this error
     try {
@@ -236,21 +254,21 @@
     } catch (e) {console.error(e)}
 
     document.querySelector('#create-image').addEventListener('click', async function () {
-      const db = await BrowstorJS.open()
+      const db = await BrowstorJS.open('browstorJs', filesystemApi)
       const newId = (await db.getKeys()).length + 1
       const response = await fetch('img/testimage.png')
       await db.set('image-' + newId + '.png', await response.blob())
       updateTable()
     })
     document.querySelector('#create-entry').addEventListener('click', async function () {
-      const db = await BrowstorJS.open()
+      const db = await BrowstorJS.open('browstorJs', filesystemApi)
       const newId = (await db.getKeys()).length + 1
       await db.set('entry-' + newId, 'Entry Nr. ' + newId + ' with some random number: ' + Math.random().toString().substring(0, 5))
       updateTable()
     })
     document.querySelector('body').addEventListener('click', async function (ev) {
       if (ev.target.classList.contains('delete')) {
-        const db = await BrowstorJS.open()
+        const db = await BrowstorJS.open('browstorJs', filesystemApi)
         const tr = ev.target.closest('tr')
         await db.remove(tr.dataset.key)
         tr.remove()

@@ -34,7 +34,9 @@
     </style>
 </head>
 <body>
-<h2 id="title" style="color: orange">Tests are running...</h2>
+<h2 id="title" style="color: orange">
+    <button id="start-tests">Start Tests</button>
+</h2>
 <div id="tests"></div>
 <script src="scripts/browstorjs.js"></script>
 <script>
@@ -45,7 +47,7 @@
       el.classList.add('test')
       el.dataset.id = id
       let html = `
-            <h2>${title}</h2>
+            <h2>${title} ${filesystemApi ? '(Filesystem API)' : '(IndexedDB)'}</h2>
       `
       if (userGesture) html += '<button class="run-test">Run test</button>'
       el.innerHTML = html
@@ -83,6 +85,20 @@
       title.style.color = 'green'
     }
 
+    async function assertRegexStr (expect, actual) {
+      return new Promise(async function (resolve) {
+        if (!(new RegExp(expect, 'i')).test(actual)) {
+          console.error('Expected: ', expect)
+          console.error('Actual: ', actual)
+          title.innerHTML += '<br/>Error - See console for more information'
+          title.style.color = 'red'
+          return
+        }
+        title.dataset.status = 'finished'
+        resolve()
+      })
+    }
+
     async function assert (expect, actual) {
       return new Promise(async function (resolve) {
         if ((expect instanceof Blob)) expect = await blobToArrayBuffer(expect)
@@ -118,18 +134,23 @@
     const tests = []
 
     const dbName = 'browstorjs_test'
+    const filesystemApi = window.location.search.includes('filesystemApi=1')
 
     let imageBlob = null
 
     addTest('Initial Reset db', async function () {
-      const db = await BrowstorJS.open(dbName)
+      const db = await BrowstorJS.open(dbName, filesystemApi)
       await db.reset()
       await assert([], await db.getKeys())
     })
 
+    addTest('Request persistent permission', async function () {
+      await assert(true, typeof (await BrowstorJS.requestPersistentStorage()) === 'boolean')
+    })
+
     addTest('Set value', async function () {
       imageBlob = await (await fetch('img/testimage.png')).blob()
-      const db = await BrowstorJS.open(dbName)
+      const db = await BrowstorJS.open(dbName, filesystemApi)
       await db.set('testvalue1', 123)
       await db.set('testvalue2', '')
       await db.set('testvalue3', ['1'])
@@ -141,14 +162,15 @@
     })
 
     addTest('Get value', async function () {
-      const db = await BrowstorJS.open(dbName)
+      const db = await BrowstorJS.open(dbName, filesystemApi)
       await assert(123, await db.get('testvalue1'))
       await assert('', await db.get('testvalue2'))
       await assert(['1'], await db.get('testvalue3'))
+      await assert(null, await db.get('testvaluenotexist'))
     })
 
     addTest('Search value', async function () {
-      const db = await BrowstorJS.open(dbName)
+      const db = await BrowstorJS.open(dbName, filesystemApi)
       await assert({ 'testvalue1': 123 }, await db.search(function (key, value) {
         return key === 'testvalue1'
       }))
@@ -157,7 +179,7 @@
     })
 
     addTest('Remove value', async function () {
-      const db = await BrowstorJS.open(dbName)
+      const db = await BrowstorJS.open(dbName, filesystemApi)
       await db.remove('testvalue1')
       await assert(null, await db.get('testvalue1'))
     })
@@ -168,11 +190,15 @@
         await assert('data:image/png', (await db.getUrl('testvalue4')).substring(0, 14))
         return
       }
-      await assert('_browstorJS/testvalue4/browstorjs_test', await db.getUrl('testvalue4'))
+      if (db.worker) {
+        await assertRegexStr('^blob:', await db.getUrl('testvalue4'))
+        return
+      }
+      await assert('_browstorJS/testvalue4/0/browstorjs_test', await db.getUrl('testvalue4'))
     })
 
     addTest('Get data uri', async function () {
-      const db = await BrowstorJS.open(dbName)
+      const db = await BrowstorJS.open(dbName, filesystemApi)
       const dataUriExpected = await (new Promise(await function (resolve) {
         const reader = new FileReader()
         reader.onload = function (e) {resolve(reader.result)}
@@ -182,38 +208,42 @@
     })
 
     addTest('Check URL matching testfile', async function () {
-      const db = await BrowstorJS.open(dbName)
+      const db = await BrowstorJS.open(dbName, filesystemApi)
       await assert(await (await fetch('img/testimage.png')).blob(), await (await fetch(await db.getUrl('testvalue4'))).blob())
     })
 
     addTest('Get keys', async function () {
-      const db = await BrowstorJS.open(dbName)
+      const db = await BrowstorJS.open(dbName, filesystemApi)
       await assert(['testvalue2', 'testvalue3', 'testvalue4'], await db.getKeys())
     })
 
-    addTest('Break/Close DB connection and check auto-reconnect', async function () {
-      const db = await BrowstorJS.open(dbName)
-      db.idb.close()
-      await assert(['testvalue2', 'testvalue3', 'testvalue4'], await db.getKeys())
-    })
+    if (filesystemApi) {
+      addTest('Break Filesystem Worker and check auto-fix', async function () {
+        const db = await BrowstorJS.open(dbName, filesystemApi)
+        db.worker.terminate()
+        await assert(['testvalue2', 'testvalue3', 'testvalue4'], await db.getKeys())
+      })
+    } else {
+      addTest('Break/Close DB connection and check auto-reconnect', async function () {
+        const db = await BrowstorJS.open(dbName, filesystemApi)
+        db.idb.close()
+        await assert(['testvalue2', 'testvalue3', 'testvalue4'], await db.getKeys())
+      })
+    }
 
     addTest('Get storage space info', async function () {
-      const db = await BrowstorJS.open(dbName)
-      db.idb.close()
       await assert(true, (await BrowstorJS.getStorageSpaceInfo()).free > -2)
     })
 
-    addTest('Request persistent permission with user click', async function () {
-      await assert(true, typeof (await BrowstorJS.requestPersistentStorage()) === 'boolean')
-    }, true)
-
     addTest('Reset', async function () {
-      const db = await BrowstorJS.open(dbName)
+      const db = await BrowstorJS.open(dbName, filesystemApi)
       await db.reset()
       await assert([], await db.getKeys())
     })
 
-    runTests()
+    document.querySelector('#start-tests').addEventListener('click', function () {
+      runTests()
+    })
   })()
 </script>
 </body>
