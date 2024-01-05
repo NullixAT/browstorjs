@@ -1,4 +1,4 @@
-importScripts('scripts/browstorjs.js')
+importScripts('scripts/browstorjs.min.js')
 
 self.addEventListener('activate',  event => {
   if(BrowstorJS.handleServiceWorkerEvents(event)) return

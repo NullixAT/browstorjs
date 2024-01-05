@@ -145,7 +145,7 @@ export default class BrowstorJS {
     const instanceId = dbName + '__' + (useFilesystemApi ? '1' : '0')
     if (typeof BrowstorJS.instances[instanceId] !== 'undefined' && BrowstorJS.instances[instanceId]) return BrowstorJS.instances[instanceId]
 
-    const db = new BrowstorJS()
+    let db = new BrowstorJS()
     db.instanceId = instanceId
 
     if (useFilesystemApi && BrowstorJS.isFilesystemApiAvailable()) {
@@ -153,7 +153,15 @@ export default class BrowstorJS {
       BrowstorJS.instances[db.instanceId] = db
       db.dbName = dbName
       await db.startFilesystemWorker()
-      return db
+      // check if filesystem api works properly (safari on IOS cannot write due to bugs in older versions)
+      const testResult = await db.postMessageToWorker('test-support')
+      if (testResult.result) {
+        return db
+      }
+      console.warn('Fallback to IndexedDB because Filesystem API does not work')
+      // fallback to indexed db
+      delete BrowstorJS.instances[db.instanceId]
+      db = new BrowstorJS()
     }
 
     return new Promise<BrowstorJS>(function (resolve, reject) {
@@ -503,7 +511,7 @@ export default class BrowstorJS {
       // when a transaction can't be opened, close db and reopen it
       // this can happen after some time of inactivity
       // whenever the browser decide to close the database for energy saving
-      let transaction
+      let transaction: IDBTransaction
       try {
         transaction = db.transaction([self.dbName], 'readwrite')
         transaction.abort()
@@ -563,7 +571,7 @@ export default class BrowstorJS {
    * @returns {Promise<any>}
    * @private
    */
-  private async convertValue (value: any, to): Promise<any> {
+  private async convertValue (value: any, to: string): Promise<any> {
     if (value === null || value === undefined) {
       return null
     } else if (value instanceof Blob && to === 'data') {
@@ -581,169 +589,8 @@ export default class BrowstorJS {
    */
   private async startFilesystemWorker (): Promise<void> {
     const selfInstance = this
-    // language=js
-    const workerJs =  /** @lang JavaScript */ `
-      const maxRetries = 500
-      const directoryHandles = {}
+    const workerJs = `source:browstorjs-filesystem-worker.js`
 
-      async function wait (ms) {
-        return new Promise(function (resolve) {
-          setTimeout(resolve, ms)
-        })
-      }
-
-      async function getDirectory (dbName) {
-        if (directoryHandles[dbName]) {
-          return directoryHandles[dbName]
-        }
-        const root = await navigator.storage.getDirectory()
-        directoryHandles[dbName] = await root.getDirectoryHandle('browstorjs-' + dbName, { create: true })
-        return true
-      }
-
-      async function getFileHandle (dbName, filename, create) {
-        let retry = 1
-        while (retry <= maxRetries) {
-          retry++
-          try {
-
-            const root = await getDirectory(dbName)
-            return await root.getFileHandle(filename, { 'create': create })
-          } catch (e) {
-            // not found exception
-            if (e.code === 8 && !create) {
-              return null
-            }
-            console.error(e)
-            await wait(10)
-          }
-        }
-        throw new Error('Cannot read ' + filename)
-      }
-
-      async function getFile (dbName, filename, create) {
-        const handle = await getFileHandle(dbName, filename, create)
-        if (handle) return handle.createSyncAccessHandle()
-        return null
-      }
-
-      onmessage = async (e) => {
-        const message = e.data
-        let filename = ''
-        if (message.key) {
-          filename = message.key.replace(/[^a-z0-9-_]/ig, '-')
-        }
-        if (message.type === 'init') {
-          await getDirectory(message.dbName)
-          self.postMessage({ 'id': message.id })
-        }
-        if (message.type === 'list') {
-          const filenames = []
-          const root = await getDirectory(message.dbName)
-          for await (const handle of root.values()) {
-            if (handle.kind === "file") {
-              const file = await handle.getFile();
-              if (file !== null && !file.name.endsWith('.meta.json')) {
-                filenames.push(file.name)
-              }
-            }
-          }
-          filenames.sort()
-          self.postMessage({ 'id': message.id, 'list': filenames })
-        }
-        if (message.type === 'read-url') {
-          let accessHandle = await getFileHandle(message.dbName, filename, false)
-          let url = null
-          if (accessHandle) {
-            url = URL.createObjectURL(await accessHandle.getFile())
-          }
-          self.postMessage({ 'id': message.id, 'url': url })
-        }
-        if (message.type === 'read') {
-          let accessHandle = await getFile(message.dbName, filename, false)
-          let fileBuffer = null
-          let meta = null
-          let contents = null
-          if (accessHandle) {
-            const arrayBuffer = new ArrayBuffer(accessHandle.getSize())
-            fileBuffer = new DataView(arrayBuffer)
-            accessHandle.read(fileBuffer, { at: 0 })
-            accessHandle.close()
-
-            accessHandle = await getFile(message.dbName, filename + ".meta.json", false)
-            if (accessHandle) {
-              const metaBuffer = new DataView(new ArrayBuffer(accessHandle.getSize()))
-              accessHandle.read(metaBuffer, { at: 0 })
-              accessHandle.close()
-              meta = JSON.parse((new TextDecoder()).decode(metaBuffer))
-            }
-
-          }
-          if (fileBuffer && meta) {
-            if (meta.type === 'blob') {
-              contents = new Blob([fileBuffer], { 'type': meta.blobType })
-            }
-            if (meta.type === 'json') {
-              contents = (new TextDecoder()).decode(fileBuffer)
-              try {
-                contents = JSON.parse(contents)
-              } catch (e) {
-                console.error(e)
-              }
-            }
-          }
-          self.postMessage({ 'id': message.id, 'contents': contents })
-        }
-        if (message.type === 'write') {
-          let accessHandle = await getFile(message.dbName, filename, true)
-          if (!accessHandle) {
-            throw new Error('Cannot open file ' + filename)
-          }
-          let contents = message.data
-          let meta = { 'type': 'json' }
-          if (contents instanceof Blob) {
-            meta = { 'type': 'blob', 'blobType': contents.type }
-            contents = await new Promise(function (resolve) {
-              const reader = new FileReader()
-              reader.addEventListener('load', () => {
-                resolve(reader.result)
-              })
-              reader.readAsArrayBuffer(contents)
-            })
-          } else {
-            contents = new TextEncoder().encode(JSON.stringify(contents))
-          }
-          accessHandle.write(contents, { at: 0 })
-          accessHandle.flush()
-          accessHandle.close()
-          accessHandle = await getFile(message.dbName, filename + ".meta.json", true)
-          accessHandle.write((new TextEncoder()).encode(JSON.stringify(meta)), { at: 0 })
-          accessHandle.flush()
-          accessHandle.close()
-          self.postMessage({ 'id': message.id })
-        }
-        if (message.type === 'remove') {
-          const accessHandle = await getFile(message.dbName, filename, false)
-          if (accessHandle) {
-            accessHandle.close()
-            const root = await getDirectory(message.dbName)
-            try {
-              await root.removeEntry(filename)
-              await root.removeEntry(filename + ".meta.json")
-            } catch (e) {
-              console.error(e)
-            }
-            self.postMessage({ 'id': message.id })
-          }
-        }
-        if (message.type === 'reset') {
-          const root = await navigator.storage.getDirectory()
-          await root.removeEntry('browstorjs-' + message.dbName, { 'recursive': true })
-          delete directoryHandles[message.dbName]
-          self.postMessage({ 'id': message.id })
-        }
-      };
-    `
     // terminate old worker if any exist
     if (selfInstance.worker) {
       selfInstance.worker.terminate()
