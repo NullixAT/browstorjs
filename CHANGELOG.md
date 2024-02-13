@@ -1,7 +1,6 @@
 ## [2.0.0] TBA
 
-* 🎉🎉🎉 added `Filesystem API` support
-* added minified version
+* 🎉🎉🎉 added `Filesystem API` support for best data persistence - Data will resist even if user decide to clear browser history
 
 ## [1.3.0] 2023-01-31
 

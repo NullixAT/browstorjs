@@ -117,22 +117,14 @@ class BrowstorJS {
         const instanceId = dbName + '__' + (useFilesystemApi ? '1' : '0');
         if (typeof BrowstorJS.instances[instanceId] !== 'undefined' && BrowstorJS.instances[instanceId])
             return BrowstorJS.instances[instanceId];
-        let db = new BrowstorJS();
+        const db = new BrowstorJS();
         db.instanceId = instanceId;
         if (useFilesystemApi && BrowstorJS.isFilesystemApiAvailable()) {
             db.instanceId = instanceId;
             BrowstorJS.instances[db.instanceId] = db;
             db.dbName = dbName;
             await db.startFilesystemWorker();
-            // check if filesystem api works properly (safari on IOS cannot write due to bugs in older versions)
-            const testResult = await db.postMessageToWorker('test-support');
-            if (testResult.result) {
-                return db;
-            }
-            console.warn('Fallback to IndexedDB because Filesystem API does not work');
-            // fallback to indexed db
-            delete BrowstorJS.instances[db.instanceId];
-            db = new BrowstorJS();
+            return db;
         }
         return new Promise(function (resolve, reject) {
             const request = indexedDB.open(dbName, 1);
@@ -552,7 +544,169 @@ class BrowstorJS {
      */
     async startFilesystemWorker() {
         const selfInstance = this;
-        const workerJs = `const maxRetries=500,directoryHandles={},urlFileMap=new Map,encoder=new TextEncoder,decoder=new TextDecoder;function bufferToStr(n){return decoder.decode(n)}function strToBuffer(n){return encoder.encode(n)}function readFromHandle(n){let i=1,r=[],t,a=0;function o(s,c){const l=n.read(s,{at:c}),f=s.byteLength;if(l!==f)throw new Error("Retry read because read bytes do not match buffer size. Actual: "+l+", Expected: "+f)}for(;i++<=10;)try{r=[],a=0,t=new ArrayBuffer(6),r.push(t),o(t,a),a+=t.byteLength;const s=parseInt(bufferToStr(t));return t=new ArrayBuffer(s),r.push(t),s&&(o(t,a),a+=t.byteLength),t=new ArrayBuffer(n.getSize()-a),r.push(t),o(t,a),r}catch(s){console.error(s)}throw console.error(["Cannot read buffers from handle",n,r]),new Error("Cannot read buffers from handle")}function writeToHandle(n,e){let r=1;e:for(;r++<=10;){n.truncate(0);let t=0;for(let a=0;a<e.length;a++){const o=e[a];if(o.byteLength){try{const s=n.write(o,{at:t}),c=o.byteLength;if(s!==c)throw new Error("Retry write because written bytes do not match buffer size. Actual: "+s+", Expected: "+c)}catch(s){console.error(s);continue e}t+=o.byteLength}}n.flush();return}throw console.error(["Cannot write buffers to handle",n,e]),new Error("Cannot write buffers to handle")}async function wait(n){return new Promise(function(e){setTimeout(e,n)})}async function getDirectory(n){if(directoryHandles[n])return directoryHandles[n];const e=await navigator.storage.getDirectory();return directoryHandles[n]=await e.getDirectoryHandle("browstorjs-"+n,{create:!0}),directoryHandles[n]}async function getFileHandle(n,e,i){let r=1;for(;r<=500;){r++;try{return await(await getDirectory(n)).getFileHandle(e,{create:i})}catch(t){if(t.code===8&&!i)return null;console.error(t),await wait(10)}}throw new Error("Cannot read "+e)}async function getSyncAccessHandle(n,e,i){const r=await getFileHandle(n,e,i);return r?r.createSyncAccessHandle():null}onmessage=async n=>{const e=n.data;let i="";if(e.key&&(i=e.key.replace(/[^a-z0-9-_]/ig,"-")),e.type==="init"&&(await getDirectory(e.dbName),self.postMessage({id:e.id})),e.type==="test-support"){let r=await getSyncAccessHandle(e.dbName,"__browstorjs_test__",!0);if(r)try{const t=new Uint8Array(1);t[0]=0,writeToHandle(r,[t]);const a=new Uint8Array(1);r.read(a,{at:0}),r.close(),await(await getDirectory(e.dbName)).removeEntry("__browstorjs_test__"),self.postMessage({id:e.id,result:a[0]===0});return}catch{r.close()}self.postMessage({id:e.id,result:!1})}if(e.type==="list"){const r=[],t=await getDirectory(e.dbName);for await(const a of t.values())if(a.kind==="file"){const o=await a.getFile();if(o!==null&&(r.push(o.name),e.data&&e.data.limit&&r.length>=e.data.limit))break}r.sort(),self.postMessage({id:e.id,list:r})}if(e.type==="read-url"){let r=await getFileHandle(e.dbName,i,!1),t=null;if(r){const a=await r.getFile();if(t=urlFileMap.get(a),!t){const o=await getSyncAccessHandle(e.dbName,i,!1);if(o){const s=readFromHandle(o);o.close();const c=JSON.parse(bufferToStr(s[1]));t=URL.createObjectURL(new Blob([s[2]],{type:c.blobType})),urlFileMap.set(a,t)}}}self.postMessage({id:e.id,url:t})}if(e.type==="read"){let r=await getSyncAccessHandle(e.dbName,i,!1),t=null,a=null,o=null;if(r&&(t=readFromHandle(r),r.close()),t){if(parseInt(bufferToStr(t[0])))try{a=JSON.parse(bufferToStr(t[1]))}catch(s){console.error(s)}if(a&&a.type==="blob"&&(o=new Blob([t[2]],{type:a.blobType})),!a||a.type==="json"){o=bufferToStr(t[2]);try{o=JSON.parse(o)}catch(s){console.error(s)}}}self.postMessage({id:e.id,meta:a,contents:o})}if(e.type==="write"){let r=await getSyncAccessHandle(e.dbName,i,!0);if(!r)throw new Error("Cannot open file "+i);let t=e.data,a="";t instanceof Blob?(a=JSON.stringify({type:"blob",blobType:t.type}),t=await new Promise(function(o){const s=new FileReader;s.addEventListener("load",()=>{o(s.result)}),s.readAsArrayBuffer(t)})):t=strToBuffer(JSON.stringify(t)),writeToHandle(r,[strToBuffer(a.length.toString().padStart(6)),strToBuffer(a),t]),r.close(),self.postMessage({id:e.id,result:0})}if(e.type==="remove"){const r=await getFileHandle(e.dbName,i,!1);if(r){const t=await r.getFile(),a=urlFileMap.get(t);a&&(URL.revokeObjectURL(a),urlFileMap.delete(t));const o=await getDirectory(e.dbName);try{await o.removeEntry(i)}catch(s){console.error(s)}self.postMessage({id:e.id})}}e.type==="reset"&&(await(await navigator.storage.getDirectory()).removeEntry("browstorjs-"+e.dbName,{recursive:!0}),delete directoryHandles[e.dbName],self.postMessage({id:e.id}))};`;
+        // language=js
+        const workerJs = /** @lang JavaScript */ `
+      const maxRetries = 500
+      const directoryHandles = {}
+
+      async function wait (ms) {
+        return new Promise(function (resolve) {
+          setTimeout(resolve, ms)
+        })
+      }
+
+      async function getDirectory (dbName) {
+        if (directoryHandles[dbName]) {
+          return directoryHandles[dbName]
+        }
+        const root = await navigator.storage.getDirectory()
+        directoryHandles[dbName] = await root.getDirectoryHandle('browstorjs-' + dbName, { create: true })
+        return true
+      }
+
+      async function getFileHandle (dbName, filename, create) {
+        let retry = 1
+        while (retry <= maxRetries) {
+          retry++
+          try {
+
+            const root = await getDirectory(dbName)
+            return await root.getFileHandle(filename, { 'create': create })
+          } catch (e) {
+            // not found exception
+            if (e.code === 8 && !create) {
+              return null
+            }
+            console.error(e)
+            await wait(10)
+          }
+        }
+        throw new Error('Cannot read ' + filename)
+      }
+
+      async function getFile (dbName, filename, create) {
+        const handle = await getFileHandle(dbName, filename, create)
+        if (handle) return handle.createSyncAccessHandle()
+        return null
+      }
+
+      onmessage = async (e) => {
+        const message = e.data
+        let filename = ''
+        if (message.key) {
+          filename = message.key.replace(/[^a-z0-9-_]/ig, '-')
+        }
+        if (message.type === 'init') {
+          await getDirectory(message.dbName)
+          self.postMessage({ 'id': message.id })
+        }
+        if (message.type === 'list') {
+          const filenames = []
+          const root = await getDirectory(message.dbName)
+          for await (const handle of root.values()) {
+            if (handle.kind === "file") {
+              const file = await handle.getFile();
+              if (file !== null && !file.name.endsWith('.meta.json')) {
+                filenames.push(file.name)
+              }
+            }
+          }
+          filenames.sort()
+          self.postMessage({ 'id': message.id, 'list': filenames })
+        }
+        if (message.type === 'read-url') {
+          let accessHandle = await getFileHandle(message.dbName, filename, false)
+          let url = null
+          if (accessHandle) {
+            url = URL.createObjectURL(await accessHandle.getFile())
+          }
+          self.postMessage({ 'id': message.id, 'url': url })
+        }
+        if (message.type === 'read') {
+          let accessHandle = await getFile(message.dbName, filename, false)
+          let fileBuffer = null
+          let meta = null
+          let contents = null
+          if (accessHandle) {
+            const arrayBuffer = new ArrayBuffer(accessHandle.getSize())
+            fileBuffer = new DataView(arrayBuffer)
+            accessHandle.read(fileBuffer, { at: 0 })
+            accessHandle.close()
+
+            accessHandle = await getFile(message.dbName, filename + ".meta.json", false)
+            if (accessHandle) {
+              const metaBuffer = new DataView(new ArrayBuffer(accessHandle.getSize()))
+              accessHandle.read(metaBuffer, { at: 0 })
+              accessHandle.close()
+              meta = JSON.parse((new TextDecoder()).decode(metaBuffer))
+            }
+
+          }
+          if (fileBuffer && meta) {
+            if (meta.type === 'blob') {
+              contents = new Blob([fileBuffer], { 'type': meta.blobType })
+            }
+            if (meta.type === 'json') {
+              contents = (new TextDecoder()).decode(fileBuffer)
+              try {
+                contents = JSON.parse(contents)
+              } catch (e) {
+                console.error(e)
+              }
+            }
+          }
+          self.postMessage({ 'id': message.id, 'contents': contents })
+        }
+        if (message.type === 'write') {
+          let accessHandle = await getFile(message.dbName, filename, true)
+          if (!accessHandle) {
+            throw new Error('Cannot open file ' + filename)
+          }
+          let contents = message.data
+          let meta = { 'type': 'json' }
+          if (contents instanceof Blob) {
+            meta = { 'type': 'blob', 'blobType': contents.type }
+            contents = await new Promise(function (resolve) {
+              const reader = new FileReader()
+              reader.addEventListener('load', () => {
+                resolve(reader.result)
+              })
+              reader.readAsArrayBuffer(contents)
+            })
+          } else {
+            contents = new TextEncoder().encode(JSON.stringify(contents))
+          }
+          accessHandle.write(contents, { at: 0 })
+          accessHandle.flush()
+          accessHandle.close()
+          accessHandle = await getFile(message.dbName, filename + ".meta.json", true)
+          accessHandle.write((new TextEncoder()).encode(JSON.stringify(meta)), { at: 0 })
+          accessHandle.flush()
+          accessHandle.close()
+          self.postMessage({ 'id': message.id })
+        }
+        if (message.type === 'remove') {
+          const accessHandle = await getFile(message.dbName, filename, false)
+          if (accessHandle) {
+            accessHandle.close()
+            const root = await getDirectory(message.dbName)
+            try {
+              await root.removeEntry(filename)
+              await root.removeEntry(filename + ".meta.json")
+            } catch (e) {
+              console.error(e)
+            }
+            self.postMessage({ 'id': message.id })
+          }
+        }
+        if (message.type === 'reset') {
+          const root = await navigator.storage.getDirectory()
+          await root.removeEntry('browstorjs-' + message.dbName, { 'recursive': true })
+          delete directoryHandles[message.dbName]
+          self.postMessage({ 'id': message.id })
+        }
+      };
+    `;
         // terminate old worker if any exist
         if (selfInstance.worker) {
             selfInstance.worker.terminate();

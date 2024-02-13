@@ -1,12 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta charset="UTF-8">
     <title>BrowstorJS Tests</title>
     <link rel="icon" href="img/logo.svg">
     <script>
-      window.filesystemApi = window.location.search.includes('filesystemApi=1')
       // just register service worker as usual
       // is undefined in private browsing mode in some browsers, so just log this error
       try {
@@ -39,9 +37,8 @@
 <h2 id="title" style="color: orange">
     <button id="start-tests">Start Tests</button>
 </h2>
-<h3 id="system-type"></h3>
 <div id="tests"></div>
-<script src="scripts/browstorjs.min.js"></script>
+<script src="scripts/browstorjs.js"></script>
 <script>
   (async function () {
     function addTest (title, test, userGesture) {
@@ -50,7 +47,7 @@
       el.classList.add('test')
       el.dataset.id = id
       let html = `
-            <h2>${title}</h2>
+            <h2>${title} ${filesystemApi ? '(Filesystem API)' : '(IndexedDB)'}</h2>
       `
       if (userGesture) html += '<button class="run-test">Run test</button>'
       el.innerHTML = html
@@ -137,15 +134,12 @@
     const tests = []
 
     const dbName = 'browstorjs_test'
+    const filesystemApi = window.location.search.includes('filesystemApi=1')
 
     let imageBlob = null
 
     addTest('Initial Reset db', async function () {
-      document.querySelector('#system-type').innerHTML = 'Storage: ' + (filesystemApi ? 'Filesystem API' : 'IndexedDB')
       const db = await BrowstorJS.open(dbName, filesystemApi)
-      if (filesystemApi && !db.worker) {
-        document.querySelector('#system-type').innerHTML += ', but felt back to IndexedDB'
-      }
       await db.reset()
       await assert([], await db.getKeys())
     })
@@ -223,21 +217,19 @@
       await assert(['testvalue2', 'testvalue3', 'testvalue4'], await db.getKeys())
     })
 
-    addTest('Break Filesystem Worker and check auto-fix', async function () {
-      const db = await BrowstorJS.open(dbName, filesystemApi)
-      if (db.worker) {
+    if (filesystemApi) {
+      addTest('Break Filesystem Worker and check auto-fix', async function () {
+        const db = await BrowstorJS.open(dbName, filesystemApi)
         db.worker.terminate()
         await assert(['testvalue2', 'testvalue3', 'testvalue4'], await db.getKeys())
-      }
-    })
-
-    addTest('Break/Close DB connection and check auto-reconnect', async function () {
-      const db = await BrowstorJS.open(dbName, filesystemApi)
-      if (db.idb) {
+      })
+    } else {
+      addTest('Break/Close DB connection and check auto-reconnect', async function () {
+        const db = await BrowstorJS.open(dbName, filesystemApi)
         db.idb.close()
         await assert(['testvalue2', 'testvalue3', 'testvalue4'], await db.getKeys())
-      }
-    })
+      })
+    }
 
     addTest('Get storage space info', async function () {
       await assert(true, (await BrowstorJS.getStorageSpaceInfo()).free > -2)
