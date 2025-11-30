@@ -17,6 +17,6 @@
   "homepage": "https://github.com/NullixAT/browstorjs",
   "devDependencies": {
     "typescript": "^4.7.4",
-    "@playwright/test": "latest"
+    "@playwright/test": "^1.57.0"
   }
 }
