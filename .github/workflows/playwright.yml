@@ -10,8 +10,8 @@ jobs:
     - name: Sleep for 30 seconds to wait for test site generation from the pages workflow
       run: sleep 30s
       shell: bash
-    - uses: actions/checkout@v2
-    - uses: actions/setup-node@v2
+    - uses: actions/checkout@v6
+    - uses: actions/setup-node@v6
       with:
         node-version: '14.x'
     - name: Install dependencies
@@ -20,7 +20,7 @@ jobs:
       run: npx playwright install --with-deps
     - name: Run Playwright tests
       run: npx playwright test
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v4
       if: always()
       with:
         name: playwright-report
