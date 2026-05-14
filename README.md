@@ -1,3 +1,6 @@
+> **Note:** This is a mirror, please visit [the Codeberg Repo](https://codeberg.org/brainfoolong/browstorjs.git) for actual development. [Why Codeberg?](https://github.com/brainfoolong/brainfoolong/blob/main/WHYCODEBERG.md)
+
+
 ![Logo](docs/img/github-logo.png)
 
 # BrowstorJS :rocket: :floppy_disk: :lock: [![Tests](https://github.com/NullixAT/browstorjs/actions/workflows/playwright.yml/badge.svg)](https://github.com/NullixAT/browstorjs/actions/workflows/playwright.yml)
